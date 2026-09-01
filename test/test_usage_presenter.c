@@ -77,8 +77,12 @@ int main(void) {
   tk_tokens missing = {0};
   usage_presenter_build_quota_page(&missing, USAGE_QUOTA_CLAUDE_MODEL,
                                    &page);
-  check("missing model quota remains truthful",
-        strcmp(page.quota.label, "FABLE · WEEK") == 0 &&
+  /* Without a label from the service, the card must not name a model. The
+   * fallback used to read "FABLE · WEEK", which asserted a model the server
+   * had not confirmed and that many accounts never run -- an invented label
+   * is the same sin as an invented number. */
+  check("missing model quota names no model",
+        strcmp(page.quota.label, "TOP MODEL · WEEK") == 0 &&
         strcmp(page.quota.pct_text, "–") == 0 &&
         strcmp(page.quota.delta_text, "–") == 0 &&
         strcmp(page.quota.reset_short_text, "–") == 0 &&
@@ -86,9 +90,9 @@ int main(void) {
 
   usage_detail_page_view details = {0};
   usage_presenter_build_claude_details(&missing, &details);
-  check("Claude details use stable Fable identity without data",
+  check("Claude details name no model without data",
         details.row_count == 2 &&
-        strcmp(details.rows[0].label, "FABLE · WEEK") == 0 &&
+        strcmp(details.rows[0].label, "TOP MODEL · WEEK") == 0 &&
         strcmp(details.rows[0].pct_text, "–") == 0);
 
   tk_agent_status metadata = {0};

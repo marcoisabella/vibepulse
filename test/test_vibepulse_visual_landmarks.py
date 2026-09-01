@@ -646,10 +646,22 @@ class VibePulseVisualLandmarkTests(unittest.TestCase):
         row = [no_data.getpixel((x, BAR_SOLID_CENTER_Y))
                for x in range(22, 458)]
         self.assertEqual(set(row), {(48, 50, 56)})
-        self.assertEqual(
-            no_data.crop((22, 72, 458, 118)).tobytes(),
-            claude_stale.crop((22, 72, 458, 118)).tobytes(),
-            "no-data must retain the fixed FABLE · WEEK page identity",
+        # The page keeps its identity -- a label is always painted, in the
+        # same place, so the card never looks like a different page -- but it
+        # must NOT be the labelled card's identity. This window belongs to
+        # whichever model is heaviest on the account, and without a label from
+        # the service that is not ours to guess; the fallback used to read
+        # "FABLE · WEEK" and so named a model many accounts never run.
+        label_box = (22, 72, 458, 118)
+        self.assertNotEqual(
+            no_data.crop(label_box).tobytes(),
+            claude_stale.crop(label_box).tobytes(),
+            "no-data must not borrow the labelled card's model name",
+        )
+        self.assertTrue(
+            any(pixel != (0, 0, 0)
+                for pixel in no_data.crop(label_box).getdata()),
+            "no-data must still paint a label, not an empty band",
         )
         status = [(x, y) for y in range(18, 56) for x in range(300, 408)
                   if no_data.getpixel((x, y)) != (0, 0, 0)]

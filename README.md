@@ -5,12 +5,14 @@
 ![VibePulse: quota, a NEEDS YOU alert, and the Max Tracker heatmap](docs/img/hero.png)
 
 **A little always-on screen for your shelf that shows what your AI coding
-agents are doing — taps you on the shoulder when one is stuck waiting for
-you, and (if you want) lets you answer it with a tap on the glass. It packs
-too: one command moves it onto whatever WiFi you are on today.**
+agents are doing — turns its own pages, shows you where the month's money
+actually went model by model, taps you on the shoulder when one is stuck
+waiting for you, and (if you want) lets you answer it with a tap on the
+glass. It packs too: one command moves it onto whatever WiFi you are on
+today.**
 
-Claude Code and Codex usage, live agent activity, and a full-screen
-**NEEDS YOU** alert you can answer with a tap. A ~$30 ESP32-S3 panel plus a
+Claude Code and Codex usage, live agent activity, a month-to-date breakdown
+by model, and a full-screen **NEEDS YOU** alert you can answer with a tap. A ~$30 ESP32-S3 panel plus a
 core, pure-stdlib Python service on your Mac or Windows PC. Local mode needs no
 VibePulse account and keeps agent activity on your LAN. The optional
 numbers-only relay can carry quota data across isolated WiFi; a separate,
@@ -82,13 +84,25 @@ Contributing or validating another host? Read
 
 ## What's on screen
 
-Six core pages, swipe or auto-rotate, plus the always-present value-multiple
-page (it shows the dollar total once agents log priced usage, but the
-multiple itself stays dashed — `SET YOUR PLAN COST` — until you pick a named
-plan tier or state your exact cost) and an optional, compile-time-gated
-GitHub project pulse. Every image below is an exact 480×480 frame — the
-simulator renders
+Core pages, swiped or turned automatically, plus the always-present
+value-multiple page (it shows the dollar total once agents log priced usage,
+but the multiple itself stays dashed — `SET YOUR PLAN COST` — until you pick
+a named plan tier or state your exact cost) and an optional,
+compile-time-gated GitHub project pulse. Every image below is an exact
+480×480 frame — the simulator renders
 the same pixels as the panel.
+
+**The panel turns its own pages** every 10 seconds, so a shelf screen shows
+everything it knows instead of whichever page was last swiped to — and the
+image moves around the AMOLED instead of burning one frame into it. A finger
+always wins: touching the glass holds the page, and rotation resumes only
+after the panel has been left alone for 45 seconds. Nothing rotates while a
+NEEDS YOU alert is up. Dwell, resume delay, and the whole feature are
+`menuconfig` settings under *VibePulse panel behaviour*.
+
+Run Claude only? `TK_CODEX_SCREENS_ENABLED 0` in `secrets.h` drops Codex's
+two pages, so the rotation never waits on screens that will always be
+dashed.
 
 <table>
 <tr>
@@ -138,6 +152,21 @@ when), or how much head-room is left at reset.
 **Max Tracker** — a GitHub-style heatmap of your daily quota peaks, with
 coding streaks and max counters, per provider. Red cells are days you
 maxed out.
+
+</td>
+</tr>
+<tr>
+<td><img src="docs/img/vibepulse-models.png" alt="Month-to-date usage split by model" width="100%"></td>
+<td valign="top">
+
+**Models** — where the month actually went, ranked by cost, with each
+model's share of your spend and of your tokens. The two rarely agree: a
+cheap model can dominate the volume and cost almost nothing, and that gap
+is the point of the page.
+
+Read from your own session logs rather than the quota API, so these numbers
+stay live even when an upstream rate limit has the quota pages showing
+last-known-good.
 
 </td>
 </tr>

@@ -125,7 +125,11 @@ void usage_presenter_build_quota_page(const tk_tokens *tokens,
                  tokens->has_claude_model_week_label &&
                          tokens->claude_model_week_label[0]
                      ? tokens->claude_model_week_label
-                     : "FABLE · WEEK",
+                     /* Never assert a model the service did not
+                      * name: this window belongs to whichever model
+                      * is heaviest on the account, which is not
+                      * ours to guess. */
+                     : "TOP MODEL · WEEK",
                  &tokens->claude_model_week);
       break;
     case USAGE_QUOTA_CLAUDE_ALL:
@@ -152,7 +156,7 @@ void usage_presenter_build_claude_details(
              tokens->has_claude_model_week_label &&
                      tokens->claude_model_week_label[0]
                  ? tokens->claude_model_week_label
-                 : "FABLE · WEEK",
+                 : "TOP MODEL · WEEK",
              &tokens->claude_model_week);
   build_card(&out->rows[1], USAGE_CARD_ALL_WEEK, "ALL MODELS",
              &tokens->claude_week);

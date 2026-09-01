@@ -5,7 +5,58 @@ on the [releases page](https://github.com/niclasvestlund-YT/vibepulse/releases).
 
 ## Unreleased
 
+### Added
+
+- The panel now turns its own pages. Ten seconds a view by default, so a
+  shelf screen shows everything it knows instead of resting wherever it was
+  last swiped — and the image moves across the AMOLED rather than holding one
+  frame for hours. A finger always wins: touching the glass holds the page and
+  rotation resumes only after 45 seconds of stillness, and nothing rotates
+  under a NEEDS YOU takeover. Leaving either state costs a fresh dwell instead
+  of snapping to the next page. Dwell, resume delay, and the feature itself
+  are `menuconfig` settings under *VibePulse panel behaviour*. The switch
+  stays a hard cut: `usage_screen.c` remains under its physical static gate
+  until motion is reviewed on real hardware.
+- A **Models** page: month-to-date usage split by model, ranked by cost, with
+  each model's share of both spend and tokens. The two routinely disagree — a
+  cheap model can dominate the volume and cost almost nothing — and that gap
+  is what the page is for. It is built from the host's own session logs, not
+  the quota API, so it stays truthful while an upstream rate limit has the
+  quota windows showing last-known-good.
+- `TK_CODEX_SCREENS_ENABLED` (default on) drops Codex's weekly-quota and Max
+  Tracker pages for Claude-only panels, which otherwise swipe past — and, with
+  rotation, now wait on — two permanently dashed screens. Codex's live agent
+  rows and its Needs You takeover are unaffected.
+
 ### Fixed
+
+- The heaviest-model weekly card no longer claims to be Fable when the service
+  sends no label. It fell back to the literal `FABLE · WEEK`, asserting a model
+  the service never confirmed and that many accounts never run; it now reads
+  `TOP MODEL · WEEK`. A service-provided label still wins. An invented label is
+  the same fault as an invented number.
+- The tile columns are no longer hand-numbered. `VIEW_GITHUB` and `VIEW_VALUE`
+  were pinned at 6 and 7 while the count was written out as
+  `(6 + TK_GITHUB_SCREEN_ENABLED + 1)`, so a GitHub-disabled build — the
+  shipping default — left column 6 empty and built the Value page at column 7,
+  one past the end of `ui.tiles[]`. The `VIEW_*` enum now numbers itself and
+  the count is its own last member, with static assertions making a gap or an
+  overshoot unrepresentable. The simulator never exercised this because it
+  forces `TK_GITHUB_SCREEN_ENABLED=1`.
+- `normalize_model()` bounded model ids to 24 bytes *before* consulting
+  `MODEL_LABELS`, so any id longer than that could never match a label:
+  `claude-haiku-4-5-20251001` reached the glass as
+  `claude-haiku-4-5-2025100`. The label is now looked up on the whole id, and
+  Haiku 4.5 has one.
+- `compact_count()` was defined inside `#if TK_GITHUB_SCREEN_ENABLED` despite
+  being a general number formatter, so a GitHub-disabled build lost it
+  entirely.
+
+### Changed
+
+- `BODY_MAX` for `/api/tokens` is 3072 bytes, up from 2048, to carry the model
+  split. The capacity contract's worst case is 1802 bytes — 59 % of the
+  buffer.
 
 - A successfully parsed ESP32 quota response now clears the transport-level
   `STALE` state synchronously, rather than waiting for a later LVGL timer tick.
