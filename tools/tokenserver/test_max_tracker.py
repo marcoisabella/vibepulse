@@ -880,15 +880,29 @@ class MaxTrackerStoreEventDateOwnershipTests(unittest.TestCase):
             pre_mtime = cutoff - 400 * 86400   # always "last month"
             post_mtime = cutoff + 400 * 86400  # always "this month"
 
+            def owning_day(stamp: str) -> str:
+                """The day the store will file this record under.
+
+                The scanner converts every timestamp to LOCAL time on
+                purpose -- "dygnsgränsen är Macens, inte UTC:s" -- so a
+                UTC-stamped record belongs to whichever local day it lands
+                on. Ground truth has to agree, or the test only passes east
+                of UTC: at UTC+1 no hour below 23 crosses backwards, while
+                at UTC-8 every hour before 08:00Z belongs to the previous
+                local day.
+                """
+                moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                return moment.astimezone().strftime("%Y-%m-%d")
+
             def write_old_lines(path, count):
                 lines = []
                 for i in range(count):
                     day = old_day(rng.randrange(0, 20))
                     tokens = rng.randrange(1, 50)
+                    stamp = f"{day}T{rng.randrange(0, 23):02d}:00:00Z"
                     lines.append(_claude_usage_line(
-                        f"{path.name}-{i}", tokens,
-                        f"{day}T{rng.randrange(0, 23):02d}:00:00Z"))
-                    record(day, tokens)
+                        f"{path.name}-{i}", tokens, stamp))
+                    record(owning_day(stamp), tokens)
                 _write_jsonl(path, lines)
                 os.utime(path, (pre_mtime, pre_mtime))
 
