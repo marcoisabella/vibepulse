@@ -1270,6 +1270,18 @@ static int run_vibepulse_static_qa(void) {
   tokens_show_view(VIEW_MODELS);
   dump_frame("vibepulse-models");
 
+  /* Today, since local midnight: the page that stays real when the quota
+   * probe is rate-limited. */
+  tk_tokens daily_truth = value_truth;
+  daily_truth.day_tokens = 42015137.0;
+  daily_truth.day_tokens_per_hour = 3100000.0;
+  daily_truth.day_sessions = 4;
+  daily_truth.claude_week.has_delta = 1;
+  daily_truth.claude_week.delta_pct = 12.0;
+  tokens_apply(&daily_truth);
+  tokens_show_view(VIEW_DAILY);
+  dump_frame("vibepulse-daily");
+
   /* No split at all: dashes, not an empty chart. */
   tk_tokens models_none = value_truth;
   models_none.model_count = 0;
@@ -1325,6 +1337,10 @@ static int run_vibepulse_static_qa(void) {
   value_both.value.has_codex_plan_usd = 1;
   value_both.value.codex_plan_usd = 20.0;
   tokens_apply(&value_both);
+  /* Name the view rather than inheriting whichever page the previous capture
+   * happened to leave showing -- that ambient coupling made this frame drift
+   * silently the moment a page was added before it. */
+  tokens_show_view(VIEW_VALUE);
   dump_frame("vibepulse-value-both");
 
   /* Codex below its own break-even while Claude is well past: the whole

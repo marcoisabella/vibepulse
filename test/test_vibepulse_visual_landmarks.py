@@ -56,8 +56,8 @@ MT_STAT_COL_W = MT_GRID_W // 4  # 104
 PAGER_ROW_Y = 458  # PAGER_Y (456) + 2: inside the 6px-tall dot row
 
 
-def _screen_views():
-    """The tile count the SIMULATOR renders.
+def _view_order():
+    """The tile columns the SIMULATOR renders, in order.
 
     The VIEW_* columns are now numbered by the compiler, and the count is the
     enum's own last member, so there is no macro left to evaluate. Walk the
@@ -77,11 +77,12 @@ def _screen_views():
     enabled = {
         "TK_GITHUB_SCREEN_ENABLED": flag("TK_GITHUB_SCREEN_ENABLED", 0),
         "TK_CODEX_SCREENS_ENABLED": flag("TK_CODEX_SCREENS_ENABLED", 1),
+        "TK_MODEL_WEEK_PAGE_ENABLED": flag("TK_MODEL_WEEK_PAGE_ENABLED", 1),
     }
 
     body = app[app.index("enum {"):]
     body = body[:body.index("};")]
-    views, live = 0, True
+    order, live = [], True
     for line in body.splitlines():
         line = line.strip()
         if line.startswith("#if "):
@@ -89,8 +90,25 @@ def _screen_views():
         elif line.startswith("#endif"):
             live = True
         elif live and line.startswith("VIEW_"):
-            views += 1
-    return views
+            order.append(line.split("=")[0].strip().rstrip(","))
+    return order
+
+
+VIEW_ORDER = _view_order()
+
+
+def _screen_views():
+    """How many tiles the simulator renders, from the enum's own order."""
+    return len(VIEW_ORDER)
+
+
+def view_index(name):
+    """The tile column a VIEW_* occupies in THIS build.
+
+    Read from the enum rather than written down here: hand-numbered columns
+    are exactly what put the Value page one past the end of ui.tiles[].
+    """
+    return VIEW_ORDER.index(name)
 
 
 SCREEN_VIEWS = _screen_views()
@@ -209,6 +227,7 @@ EXPECTED = {
     "torget-vibepulse-tracker-stale.bmp",
     "torget-vibepulse-value-ahead.bmp",
     "torget-vibepulse-models.bmp",
+    "torget-vibepulse-daily.bmp",
     "torget-vibepulse-models-empty.bmp",
     "torget-vibepulse-value-early.bmp",
     "torget-vibepulse-value-wide.bmp",
@@ -1097,11 +1116,15 @@ class VibePulseVisualLandmarkTests(unittest.TestCase):
         # written here, so adding a view updates this test's expectation but
         # never lets the row silently go uncounted.
         cases = (
-            ("torget-vibepulse-tracker-claude-coldstart.bmp", 4),  # VIEW_TRACKER_CLAUDE
-            ("torget-vibepulse-tracker-codex-full.bmp", 5),        # VIEW_TRACKER_CODEX
-            ("torget-vibepulse-tracker-empty.bmp", 5),             # view unchanged
-            ("torget-vibepulse-tracker-stale.bmp", 5),             # view unchanged
-            ("torget-vibepulse-value-both.bmp", 7),               # VIEW_VALUE (last tile)
+            ("torget-vibepulse-tracker-claude-coldstart.bmp",
+             view_index("VIEW_TRACKER_CLAUDE")),
+            ("torget-vibepulse-tracker-codex-full.bmp",
+             view_index("VIEW_TRACKER_CODEX")),
+            ("torget-vibepulse-tracker-empty.bmp",
+             view_index("VIEW_TRACKER_CODEX")),
+            ("torget-vibepulse-tracker-stale.bmp",
+             view_index("VIEW_TRACKER_CODEX")),
+            ("torget-vibepulse-value-both.bmp", view_index("VIEW_VALUE")),
         )
         for name, active_index in cases:
             with self.subTest(name=name):

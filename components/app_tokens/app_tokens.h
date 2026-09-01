@@ -36,8 +36,11 @@ extern const torget_app_t tokens_app;
  * ui.tiles[]. Letting the compiler number these — and taking the count from
  * the enum's own tail — makes that class of drift unrepresentable. */
 enum {
-  VIEW_CLAUDE_FABLE = 0,
+#if TK_MODEL_WEEK_PAGE_ENABLED
+  VIEW_CLAUDE_FABLE,
+#endif
   VIEW_CLAUDE_ALL,
+  VIEW_DAILY,
 #if TK_CODEX_SCREENS_ENABLED
   VIEW_CODEX_WEEKLY,
 #endif

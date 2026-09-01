@@ -29,6 +29,17 @@
 #define TK_GITHUB_RELAY_URL      NULL
 #endif
 
+/* The heaviest-model weekly window. Not every plan exposes it -- the field
+ * arrives null and the page is dashes forever -- so it is switchable. On by
+ * default; turn it off in secrets.h when your account never reports one. */
+#ifndef TK_MODEL_WEEK_PAGE_ENABLED
+#define TK_MODEL_WEEK_PAGE_ENABLED 1
+#endif
+
+#if TK_MODEL_WEEK_PAGE_ENABLED != 0 && TK_MODEL_WEEK_PAGE_ENABLED != 1
+#error "TK_MODEL_WEEK_PAGE_ENABLED must be 0 or 1"
+#endif
+
 /* Codex's own pages — its weekly quota and its Max Tracker heatmap — for
  * people who run Codex. Someone who only runs Claude is otherwise made to
  * swipe past two permanently dashed pages forever, and on a rotating panel
@@ -48,7 +59,8 @@
 
 /* Quota pages: Claude's model week and Claude's whole week, plus Codex's
  * week when its pages are on. Tracker pages: Claude's, plus Codex's. */
-#define TK_QUOTA_PAGES   (2 + TK_CODEX_SCREENS_ENABLED)
+#define TK_QUOTA_PAGES   (1 + TK_MODEL_WEEK_PAGE_ENABLED + \
+                          TK_CODEX_SCREENS_ENABLED)
 #define TK_TRACKER_PAGES (1 + TK_CODEX_SCREENS_ENABLED)
 
 /* The GitHub page and star popup are deliberately independent. A fresh clone

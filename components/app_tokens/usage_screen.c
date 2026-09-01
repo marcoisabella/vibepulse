@@ -165,7 +165,7 @@ _Static_assert(VIEW_VALUE == TK_USAGE_SCREEN_VIEWS - 1,
                "Value must be the last tile column");
 _Static_assert(TK_USAGE_SCREEN_VIEWS ==
                    TK_QUOTA_PAGES + TK_TRACKER_PAGES + 1 +
-                       TK_GITHUB_SCREEN_ENABLED + 1 + 1,
+                       TK_GITHUB_SCREEN_ENABLED + 1 + 1 + 1,
                "tile count must equal the pages actually created");
 
 /* ------------------------------------------------------------- models */
@@ -186,6 +186,19 @@ typedef struct {
   lv_obj_t *empty;
 } models_page;
 
+/* Today, since local midnight. Same shape as the models page: one dominant
+ * number, the family bar, and the rest rounded to quiet lines. */
+typedef struct {
+  lv_obj_t *tile;
+  lv_obj_t *caption;
+  lv_obj_t *sessions;
+  lv_obj_t *hero;
+  lv_obj_t *unit;   /* K/M/B in a face that HAS letters */
+  lv_obj_t *track;
+  lv_obj_t *fill;
+  lv_obj_t *rest[2];
+} daily_page;
+
 static struct {
   lv_obj_t *tileview;
   lv_obj_t *tiles[TK_USAGE_SCREEN_VIEWS];
@@ -197,6 +210,7 @@ static struct {
 #endif
   value_page value;
   models_page models;
+  daily_page daily;
   tk_tokens last_tokens;
   tk_agent_snapshot agent_snapshot;
   int64_t agent_applied_at_us;
@@ -619,6 +633,98 @@ static void create_burn_rate_page(void) {
 #define MODELS_HERO_Y 150
 #define MODELS_REST_Y0 340
 #define MODELS_REST_H 26
+
+#define DAILY_REST_Y0 340
+#define DAILY_REST_H 26
+
+static void create_daily_page(void) {
+  daily_page *page = &ui.daily;
+  memset(page, 0, sizeof *page);
+  page->tile = new_tile(VIEW_DAILY);
+  create_analytics_header(page->tile, "TODAY", "SINCE MIDNIGHT", "LOCAL TIME");
+
+  page->caption = label(page->tile, &plex_ui_21, COL_LABEL,
+                        VP_SAFE_X, VP_QUOTA_Y, 240, 26);
+  lv_obj_set_style_text_letter_space(page->caption, 2, 0);
+  lv_label_set_text(page->caption, "TOKENS");
+
+  page->sessions = label(page->tile, &plex_ui_21, COL_MUTED,
+                         VP_SAFE_X + 240, VP_QUOTA_Y, VP_CONTENT_W - 240, 26);
+  lv_obj_set_style_text_align(page->sessions, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_style_text_letter_space(page->sessions, 2, 0);
+
+  /* plex_num_164 carries numerals, not letters -- a "M" drawn in it lands on
+   * the glass as a missing-glyph box, exactly like "$" in the stat face. The
+   * magnitude therefore gets its own label in a face that has letters, and
+   * LVGL aligns it to the number's real right edge so it follows any width. */
+  page->hero = label_auto(page->tile, &plex_num_164, COL_WHITE,
+                          VP_SAFE_X - 4, VP_PERCENT_Y);
+  lv_obj_set_style_text_letter_space(page->hero, -9, 0);
+  lv_label_set_text(page->hero, "\u2013");
+
+  page->unit = label_auto(page->tile, &plex_headline_48, COL_LABEL, 0, 0);
+  lv_label_set_text(page->unit, "");
+
+  page->track = bare(page->tile);
+  lv_obj_set_pos(page->track, VP_SAFE_X, VP_BAR_Y);
+  lv_obj_set_size(page->track, VP_CONTENT_W, VP_BAR_H);
+  lv_obj_set_style_radius(page->track, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(page->track, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(page->track, COL_TRACK, 0);
+  lv_obj_set_style_clip_corner(page->track, true, 0);
+
+  page->fill = bare(page->track);
+  lv_obj_set_pos(page->fill, 0, 0);
+  lv_obj_set_size(page->fill, 0, VP_BAR_H);
+  lv_obj_set_style_bg_opa(page->fill, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(page->fill, COL_CLAUDE, 0);
+
+  for (int i = 0; i < 2; i++) {
+    page->rest[i] = label(page->tile, &plex_ui_16, COL_MUTED,
+                          VP_SAFE_X, DAILY_REST_Y0 + i * DAILY_REST_H,
+                          VP_CONTENT_W, 24);
+    lv_obj_set_style_text_letter_space(page->rest[i], 1, 0);
+  }
+
+  create_pager(page->tile, VIEW_DAILY);
+}
+
+static void apply_daily(const tk_tokens *tokens) {
+  daily_page *page = &ui.daily;
+  if (!page->tile) return;
+
+  usage_daily_view view;
+  usage_presenter_build_daily(tokens, &view);
+
+  /* Split "42.0M" into the number and its magnitude. */
+  char digits[16] = {0}, unit[4] = {0};
+  size_t at = 0;
+  while (view.tokens_text[at] &&
+         (view.tokens_text[at] == '.' ||
+          (view.tokens_text[at] >= '0' && view.tokens_text[at] <= '9'))) {
+    if (at + 1 < sizeof digits) digits[at] = view.tokens_text[at];
+    at++;
+  }
+  snprintf(unit, sizeof unit, "%s", view.tokens_text + at);
+  lv_label_set_text(page->hero, digits[0] ? digits : view.tokens_text);
+  lv_label_set_text(page->unit, unit);
+  lv_obj_align_to(page->unit, page->hero, LV_ALIGN_OUT_RIGHT_BOTTOM, 6, -28);
+
+  char text[64];
+  snprintf(text, sizeof text, "%s SESSIONS", view.sessions_text);
+  lv_label_set_text(page->sessions, text);
+
+  int width = (int)(view.week_share * VP_CONTENT_W + 0.5);
+  if (width < 0) width = 0;
+  if (width > VP_CONTENT_W) width = VP_CONTENT_W;
+  lv_obj_set_size(page->fill, view.has_share ? width : 0, VP_BAR_H);
+
+  snprintf(text, sizeof text, "%s OF THE WEEK BURNED TODAY", view.share_text);
+  lv_label_set_text(page->rest[0], text);
+  snprintf(text, sizeof text, "%s TOKENS / HOUR",
+           view.has_rate ? view.rate_text : "\u2013");
+  lv_label_set_text(page->rest[1], text);
+}
 
 static void create_models_page(void) {
   models_page *page = &ui.models;
@@ -1169,12 +1275,19 @@ void usage_screen_create(lv_obj_t *root) {
   lv_obj_set_style_bg_opa(ui.tileview, LV_OPA_COVER, 0);
   lv_obj_set_style_bg_color(ui.tileview, COL_BLACK, 0);
 
+  /* One call per page, with the slot arithmetic carrying the option: the
+   * model-week page takes slot 0 when it exists, and everything after it
+   * shifts down by exactly that flag when it does not. */
+#if TK_MODEL_WEEK_PAGE_ENABLED
   create_quota_page(&ui.quotas[0], VIEW_CLAUDE_FABLE,
                     USAGE_QUOTA_CLAUDE_MODEL, USAGE_PROVIDER_CLAUDE);
-  create_quota_page(&ui.quotas[1], VIEW_CLAUDE_ALL,
+#endif
+  create_quota_page(&ui.quotas[TK_MODEL_WEEK_PAGE_ENABLED], VIEW_CLAUDE_ALL,
                     USAGE_QUOTA_CLAUDE_ALL, USAGE_PROVIDER_CLAUDE);
+  create_daily_page();
 #if TK_CODEX_SCREENS_ENABLED
-  create_quota_page(&ui.quotas[2], VIEW_CODEX_WEEKLY,
+  create_quota_page(&ui.quotas[1 + TK_MODEL_WEEK_PAGE_ENABLED],
+                    VIEW_CODEX_WEEKLY,
                     USAGE_QUOTA_CODEX_WEEK, USAGE_PROVIDER_CODEX);
 #endif
   create_burn_rate_page();
@@ -1203,6 +1316,7 @@ void usage_screen_apply_tokens(const tk_tokens *tokens) {
   usage_presenter_build_forecasts(tokens, &forecasts);
   for (int i = 0; i < 2; i++)
     apply_forecast_row(&ui.forecast_rows[i], &forecasts.rows[i]);
+  apply_daily(tokens);
   apply_models(tokens);
   apply_value(tokens);
 }

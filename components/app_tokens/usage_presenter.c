@@ -411,3 +411,44 @@ void usage_presenter_build_forecasts(const tk_tokens *tokens,
                      &tokens->codex_forecast);
   out->row_count = 2;
 }
+
+/* Compact volume the way the glass wants it: three significant figures at
+ * most, because a shelf screen is read at a glance and "42,015,137" is not a
+ * number anyone reads across a room. */
+static void compact_volume(double value, char *out, size_t cap) {
+  if (!(value > 0)) { snprintf(out, cap, "0"); return; }
+  if (value < 1000) snprintf(out, cap, "%d", (int)value);
+  else if (value < 1000000) snprintf(out, cap, "%.1fK", value / 1000.0);
+  else if (value < 1000000000) snprintf(out, cap, "%.1fM", value / 1000000.0);
+  else snprintf(out, cap, "%.1fB", value / 1000000000.0);
+}
+
+void usage_presenter_build_daily(const tk_tokens *tokens,
+                                 usage_daily_view *out) {
+  tk_tokens empty = {0};
+  if (!out) return;
+  if (!tokens) tokens = &empty;
+  memset(out, 0, sizeof *out);
+
+  compact_volume(tokens->day_tokens, out->tokens_text, sizeof out->tokens_text);
+  out->has_tokens = 1;
+  compact_volume(tokens->day_tokens_per_hour, out->rate_text,
+                 sizeof out->rate_text);
+  out->has_rate = tokens->day_tokens_per_hour > 0;
+  snprintf(out->sessions_text, sizeof out->sessions_text, "%d",
+           tokens->day_sessions);
+
+  /* The share only exists if the service reported today's movement inside
+   * the weekly window. Without it there is nothing to divide, and a dash is
+   * the honest answer. */
+  if (tokens->claude_week.has_delta) {
+    double pct = tokens->claude_week.delta_pct;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    out->week_share = pct / 100.0;
+    snprintf(out->share_text, sizeof out->share_text, "%d%%", (int)(pct + 0.5));
+    out->has_share = 1;
+  } else {
+    snprintf(out->share_text, sizeof out->share_text, "\u2013");
+  }
+}

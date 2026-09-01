@@ -35,6 +35,47 @@ static int64_t local_epoch(int year, int month, int day, int hour, int minute) {
   return (int64_t)mktime(&value);
 }
 
+
+/* ---------------------------------------------------------------- daily */
+
+static void test_daily_reports_todays_volume_and_share(void) {
+  tk_tokens t = {0};
+  t.day_tokens = 42015137;
+  t.day_tokens_per_hour = 3100000;
+  t.day_sessions = 4;
+  t.claude_week.has_delta = 1;
+  t.claude_week.delta_pct = 12.0;
+
+  usage_daily_view view;
+  usage_presenter_build_daily(&t, &view);
+
+  check("today's volume is compact", strcmp(view.tokens_text, "42.0M") == 0);
+  check("rate is compact", strcmp(view.rate_text, "3.1M") == 0);
+  check("sessions counted", strcmp(view.sessions_text, "4") == 0);
+  check("share of the week is shown", view.has_share &&
+        strcmp(view.share_text, "12%") == 0);
+}
+
+/* A missing delta must dash, never become a share computed from nothing. */
+static void test_daily_share_dashes_without_a_reported_delta(void) {
+  tk_tokens t = {0};
+  t.day_tokens = 1000;
+  usage_daily_view view;
+  usage_presenter_build_daily(&t, &view);
+  check("no invented share", !view.has_share &&
+        strcmp(view.share_text, "\u2013") == 0);
+  check("volume still shown", view.has_tokens);
+}
+
+static void test_daily_with_no_activity_is_zero_not_dashes(void) {
+  tk_tokens t = {0};
+  usage_daily_view view;
+  usage_presenter_build_daily(&t, &view);
+  check("a quiet day is a real zero",
+        view.has_tokens && strcmp(view.tokens_text, "0") == 0);
+  check("no sessions", strcmp(view.sessions_text, "0") == 0);
+}
+
 int main(void) {
   tk_tokens tokens = {0};
   tokens.claude_model_week = limit(73, 3120, 12);
@@ -332,6 +373,10 @@ int main(void) {
 
   check("no state ever claims the money was earned",
         strstr(value_page.verdict, "EARNED") == NULL);
+
+  test_daily_reports_todays_volume_and_share();
+  test_daily_share_dashes_without_a_reported_delta();
+  test_daily_with_no_activity_is_zero_not_dashes();
 
   if (failures == 0) {
     printf("OK: all usage presenter tests pass\n");

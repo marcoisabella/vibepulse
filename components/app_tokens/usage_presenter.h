@@ -44,6 +44,26 @@ typedef struct {
   usage_card_view quota;
 } usage_hero_view;
 
+/* Today, since local midnight. The one page whose numbers come purely from
+ * the host's own session logs, so it stays real while a rate-limited quota
+ * probe leaves the windows dashed. week_share is how much of the weekly
+ * allowance today alone accounts for -- absent whenever the service did not
+ * report a delta, because a share invented from a missing number is worse
+ * than a dash. */
+typedef struct {
+  char tokens_text[16];   /* compact: "42.0M" */
+  char rate_text[16];     /* per-hour, compact */
+  char sessions_text[16];
+  char share_text[USAGE_CARD_PCT_CAP];
+  double week_share;      /* 0..1 of the week burned today */
+  int has_tokens;
+  int has_rate;
+  int has_share;
+} usage_daily_view;
+
+void usage_presenter_build_daily(const tk_tokens *tokens,
+                                 usage_daily_view *out);
+
 typedef enum {
   USAGE_QUOTA_CLAUDE_MODEL,
   USAGE_QUOTA_CLAUDE_ALL,

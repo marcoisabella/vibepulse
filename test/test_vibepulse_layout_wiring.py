@@ -26,6 +26,7 @@ assert "#define TK_USAGE_SCREEN_VIEWS" not in header, \
 _order = (
     "VIEW_CLAUDE_FABLE",
     "VIEW_CLAUDE_ALL",
+    "VIEW_DAILY",
     "VIEW_CODEX_WEEKLY",
     "VIEW_BURN_RATE",
     "VIEW_TRACKER_CLAUDE",
