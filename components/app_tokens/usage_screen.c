@@ -1405,5 +1405,8 @@ int usage_screen_current_view(void) {
   for (int i = 0; i < TK_USAGE_SCREEN_VIEWS; i++) {
     if (ui.tiles[i] == active) return i;
   }
-  return VIEW_CLAUDE_FABLE;
+  /* Column zero, whichever page that is in this build. Naming a VIEW_* here
+   * only worked while every column existed unconditionally; the first tile is
+   * the honest answer to "we could not identify the active one". */
+  return 0;
 }
