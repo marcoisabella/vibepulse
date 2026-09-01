@@ -32,11 +32,14 @@ class GitHubWiringTests(unittest.TestCase):
         header = read("components/app_tokens/usage_screen.h")
         app = read("components/app_tokens/app_tokens.h")
         ui = read("components/app_tokens/usage_screen.c")
-        # Six base tiles + the optional GitHub tile + the always-present Value
-        # tile: GitHub stays at index 6, Value is the new last tile at 7.
-        self.assertIn("(6 + TK_GITHUB_SCREEN_ENABLED + 1)", header)
-        self.assertIn("VIEW_GITHUB = 6", app)
-        self.assertIn("VIEW_VALUE = 7", app)
+        # GitHub is an optional tile compiled in just before Value, which is
+        # always the last column. The indices themselves are the compiler's
+        # to assign -- pinning them is what let the GitHub-off build put
+        # Value one past the end of ui.tiles[].
+        self.assertIn("#if TK_GITHUB_SCREEN_ENABLED", app)
+        self.assertLess(app.index("VIEW_GITHUB"), app.index("VIEW_VALUE"))
+        self.assertLess(app.index("VIEW_VALUE"),
+                        app.index("TK_USAGE_SCREEN_VIEWS"))
         self.assertIn("set_star_hero", ui)
         self.assertIn('"FORKS"', ui)
         self.assertNotIn("ISSUES", ui)

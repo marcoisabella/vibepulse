@@ -68,7 +68,7 @@ except ImportError:  # macOS/Linux
 
 if __package__:
     from .discovery import DiscoveryAdvertiser
-    from .agent_status import AgentStatusService
+    from .agent_status import AgentStatusService, normalize_model
     from .codex_command import resolve_codex_executable
     from .codex_interactions import (
         codex_permission_response,
@@ -93,7 +93,7 @@ if __package__:
     from . import codex_usage, interactions, value_meter
 else:  # direktkörning: python3 tools/tokenserver/tokenserver.py
     from discovery import DiscoveryAdvertiser
-    from agent_status import AgentStatusService
+    from agent_status import AgentStatusService, normalize_model
     from codex_command import resolve_codex_executable
     from codex_interactions import (
         codex_permission_response,
@@ -536,14 +536,48 @@ def _parse_file(path: Path, month_start: datetime, start_offset=0):
                     key,
                     usd,
                     unpriced,
+                    # The model is already in hand for pricing; keeping it
+                    # is what lets the panel show where the month went.
+                    normalize_model(
+                        (entry.get("message") or {}).get("model")),
                 ))
     except OSError:
         pass  # borttagen under läsning — nästa skanning ser det
     return records, parsed_until
 
 
+MODEL_UNKNOWN = "UNKNOWN"
+
+# The panel shows a handful of rows and the body buffer is finite. Roll the
+# tail into one OTHER row rather than truncating: a dropped row would make
+# the shares quietly stop summing to the month total shown elsewhere.
+MODEL_ROWS_MAX = 4
+
+
+def _rank_models(by_model):
+    """Month-to-date usage per model, dearest first.
+
+    Ranked by cost because that is the question the page answers; the token
+    count rides along because the two disagree often enough to be the
+    interesting part (a cheap model can dominate volume and cost nothing).
+    """
+    ranked = sorted(
+        ((name, tokens, usd) for name, (tokens, usd) in by_model.items()),
+        key=lambda row: (-row[2], -row[1], row[0]))
+    head, tail = ranked[:MODEL_ROWS_MAX], ranked[MODEL_ROWS_MAX:]
+    rows = [{"model": name, "tokens": tokens, "usd": round(usd, 2)}
+            for name, tokens, usd in head]
+    if tail:
+        rows.append({
+            "model": "OTHER",
+            "tokens": sum(row[1] for row in tail),
+            "usd": round(sum(row[2] for row in tail), 2),
+        })
+    return rows
+
+
 def _observe_claude_volume(store, records):
-    for day, _ts, tokens, _session, _key, _usd, _unpriced in records:
+    for day, _ts, tokens, _session, _key, _usd, _unpriced, _model in records:
         store.observe_volume("claude", day, tokens)
 
 
@@ -612,15 +646,20 @@ def _compute(projects_dir: Path, max_tracker_store=None):
     month_priced_tokens = 0
     month_unpriced_tokens = 0
     day_sessions = set()
+    by_model = {}
     seen = set()
     for entry in _file_cache.values():
-        for day, ts, tokens, session, key, usd, unpriced in entry["records"]:
+        for day, ts, tokens, session, key, usd, unpriced, model in (
+                entry["records"]):
             if key is not None:
                 if key in seen:
                     continue
                 seen.add(key)
             month_tokens += tokens
             month_value_usd += usd
+            bucket = by_model.setdefault(model or MODEL_UNKNOWN, [0, 0.0])
+            bucket[0] += tokens
+            bucket[1] += usd
             if unpriced:
                 month_unpriced_tokens += unpriced
             else:
@@ -639,6 +678,7 @@ def _compute(projects_dir: Path, max_tracker_store=None):
 
     return {
         "v": 1,
+        "models": _rank_models(by_model),
         "dayTokens": day_tokens,
         "dayTokensPerHour": hour_tokens,  # senaste timmen = takt per timme
         "daySessions": len(day_sessions),

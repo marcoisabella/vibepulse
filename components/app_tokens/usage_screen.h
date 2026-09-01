@@ -12,8 +12,10 @@
 #include "max_tracker.h"
 #include "tokens.h"
 
-/* Six base tiles + the optional GitHub tile + the always-present Value tile. */
-#define TK_USAGE_SCREEN_VIEWS (6 + TK_GITHUB_SCREEN_ENABLED + 1)
+/* TK_USAGE_SCREEN_VIEWS and the VIEW_* columns come from app_tokens.h, where
+ * the count is the tail of the same enum that numbers the tiles — so the two
+ * cannot disagree. */
+#include "app_tokens.h"
 
 void usage_screen_create(lv_obj_t *root);
 void usage_screen_apply_tokens(const tk_tokens *tokens);

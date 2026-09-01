@@ -57,23 +57,40 @@ PAGER_ROW_Y = 458  # PAGER_Y (456) + 2: inside the 6px-tall dot row
 
 
 def _screen_views():
-    """The tile count the SIMULATOR renders. The header now defines
-    TK_USAGE_SCREEN_VIEWS as an expression (six base tiles +
-    TK_GITHUB_SCREEN_ENABLED + the always-present value tile) rather than a
-    bare integer, and the simulator opts GitHub in via sim/CMakeLists.txt.
-    Read that toggle and evaluate the header's own expression so this stays
-    in lockstep with both files instead of hard-coding 8."""
-    header = (ROOT / "components/app_tokens/usage_screen.h").read_text(
+    """The tile count the SIMULATOR renders.
+
+    The VIEW_* columns are now numbered by the compiler, and the count is the
+    enum's own last member, so there is no macro left to evaluate. Walk the
+    enum the way the preprocessor would -- honouring the two optional-page
+    toggles the simulator sets -- rather than hard-coding 8, so this stays in
+    lockstep with app_tokens.h and sim/CMakeLists.txt.
+    """
+    app = (ROOT / "components/app_tokens/app_tokens.h").read_text(
         encoding="utf-8")
-    expr = re.search(
-        r"^#define TK_USAGE_SCREEN_VIEWS \((.+)\)$", header, re.MULTILINE
-    ).group(1)
     cmake = (ROOT / "sim/CMakeLists.txt").read_text(encoding="utf-8")
-    github_enabled = int(
-        re.search(r"TK_GITHUB_SCREEN_ENABLED=(\d+)", cmake).group(1)
-    )
-    return eval(expr, {"__builtins__": {}},
-                {"TK_GITHUB_SCREEN_ENABLED": github_enabled})
+
+    def flag(name, default):
+        found = re.search(rf"{name}=(\d+)", cmake)
+        return int(found.group(1)) if found else default
+
+    # Defaults mirror app_tokens_config.h when the simulator is silent.
+    enabled = {
+        "TK_GITHUB_SCREEN_ENABLED": flag("TK_GITHUB_SCREEN_ENABLED", 0),
+        "TK_CODEX_SCREENS_ENABLED": flag("TK_CODEX_SCREENS_ENABLED", 1),
+    }
+
+    body = app[app.index("enum {"):]
+    body = body[:body.index("};")]
+    views, live = 0, True
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("#if "):
+            live = bool(enabled[line[4:].strip()])
+        elif line.startswith("#endif"):
+            live = True
+        elif live and line.startswith("VIEW_"):
+            views += 1
+    return views
 
 
 SCREEN_VIEWS = _screen_views()
@@ -191,6 +208,8 @@ EXPECTED = {
     "torget-vibepulse-tracker-empty.bmp",
     "torget-vibepulse-tracker-stale.bmp",
     "torget-vibepulse-value-ahead.bmp",
+    "torget-vibepulse-models.bmp",
+    "torget-vibepulse-models-empty.bmp",
     "torget-vibepulse-value-early.bmp",
     "torget-vibepulse-value-wide.bmp",
     "torget-vibepulse-value-no-plan-cost.bmp",

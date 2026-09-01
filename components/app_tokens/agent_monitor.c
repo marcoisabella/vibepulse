@@ -1220,3 +1220,7 @@ void tk_agent_monitor_dismiss_current(void) {
   tk_completion_queue_dismiss(&mon.queue);
   render_completion(mon.queue.last_now_ms);
 }
+
+bool tk_agent_monitor_needs_you_visible(void) {
+  return mon.needs_you_visible;
+}

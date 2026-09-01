@@ -60,6 +60,7 @@ ACTIVITIES = {
 # fallet igenom fortfarande gäller resten av prices.json.)
 MODEL_LABELS = {
     "claude-fable-5": "FABLE 5",
+    "claude-haiku-4-5-20251001": "HAIKU 4.5",
     "claude-opus-5": "OPUS 5",
     "claude-sonnet-5": "SONNET 5",
     "gpt-5.6-luna": "GPT-5.6 LUNA",
@@ -87,6 +88,15 @@ def _bounded_display(value: Any, max_bytes: int) -> Optional[str]:
 
 
 def normalize_model(value: Any) -> Optional[str]:
+    # Look the label up on the WHOLE id before bounding it. Bounding first
+    # silently cut every id longer than 24 bytes down to something the map
+    # could never match -- "claude-haiku-4-5-20251001" arrived on the glass
+    # as "claude-haiku-4-5-2025100". The bound still applies to models we
+    # have no label for, which is what it was there to protect.
+    if isinstance(value, str):
+        labelled = MODEL_LABELS.get(value.strip().lower())
+        if labelled is not None:
+            return labelled
     bounded = _bounded_display(value, 24)
     if bounded is None:
         return None

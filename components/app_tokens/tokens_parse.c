@@ -206,7 +206,7 @@ static bool known_top_level_key(const char *key) {
       "claudeForecastOffsetMin", "codexForecastState",
       "codexForecastPctAtReset", "codexForecastPaceFactor",
       "codexForecastAt", "codexForecastOffsetMin",
-      "otaAvailableVersion", "value",
+      "otaAvailableVersion", "value", "models",
   };
   for (size_t index = 0; index < sizeof keys / sizeof keys[0]; index++) {
     if (strcmp(key, keys[index]) == 0) return true;
@@ -253,6 +253,53 @@ static bool optional_integer(const cJSON *root, const char *key,
   }
   *out = (int64_t)item->valuedouble;
   return true;
+}
+
+/*
+ * The month-to-date split by model. Whole-or-nothing like the value block:
+ * a page that shows four of five rows would quietly stop summing to the
+ * month total on the page beside it, and a viewer cannot see that a row is
+ * missing. Dashes are honest; a short split is not.
+ *
+ * Surplus rows are NOT an error. The service ranks dearest-first and caps
+ * with an OTHER rollup, so a longer array means a newer service; keeping the
+ * first TK_MODEL_ROWS_CAP of its order is the graceful reading.
+ */
+static void optional_models(const cJSON *root, bool trust_strings,
+                            tk_tokens *out) {
+  const cJSON *array = cJSON_GetObjectItemCaseSensitive(root, "models");
+  if (!cJSON_IsArray(array)) return;
+  if (!trust_strings) return;
+
+  tk_model_row rows[TK_MODEL_ROWS_CAP];
+  int count = 0;
+  for (const cJSON *item = array->child; item; item = item->next) {
+    if (count >= TK_MODEL_ROWS_CAP) break;
+    if (!cJSON_IsObject(item)) return;
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "model");
+    const cJSON *tokens = cJSON_GetObjectItemCaseSensitive(item, "tokens");
+    const cJSON *usd = cJSON_GetObjectItemCaseSensitive(item, "usd");
+    if (!cJSON_IsString(name) || !name->valuestring || !name->valuestring[0]) {
+      return;
+    }
+    if (!cJSON_IsNumber(tokens) || !isfinite(tokens->valuedouble) ||
+        tokens->valuedouble < 0) {
+      return;
+    }
+    if (!cJSON_IsNumber(usd) || !isfinite(usd->valuedouble) ||
+        usd->valuedouble < 0) {
+      return;
+    }
+    tk_model_row *row = &rows[count];
+    memset(row, 0, sizeof *row);
+    snprintf(row->name, sizeof row->name, "%s", name->valuestring);
+    row->tokens = tokens->valuedouble;
+    row->usd = usd->valuedouble;
+    count++;
+  }
+
+  for (int index = 0; index < count; index++) out->models[index] = rows[index];
+  out->model_count = count;
 }
 
 /*
@@ -447,6 +494,7 @@ bool tk_tokens_parse(const char *json, size_t len, tk_tokens *out) {
   optional_forecast(root, "claude", trust_optional_strings,
                     &t.claude_forecast);
   optional_value(root, trust_optional_strings, &t.value);
+  optional_models(root, trust_optional_strings, &t);
   optional_forecast(root, "codex", trust_optional_strings,
                     &t.codex_forecast);
 

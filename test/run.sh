@@ -102,6 +102,18 @@ cc -std=c11 -Wall -Wextra -Werror -O1 \
 /tmp/torget-needs-you-test
 
 cc -std=c11 -Wall -Wextra -Werror -O1 \
+  ../components/app_tokens/page_rotation.c \
+  test_page_rotation.c \
+  -o /tmp/torget-page-rotation-test
+/tmp/torget-page-rotation-test
+
+cc -std=c11 -Wall -Wextra -Werror -O1 \
+  ../components/app_tokens/models_presenter.c \
+  test_models_presenter.c \
+  -o /tmp/torget-models-presenter-test
+/tmp/torget-models-presenter-test
+
+cc -std=c11 -Wall -Wextra -Werror -O1 \
   ../components/app_tokens/needs_you_send_policy.c \
   test_needs_you_send_policy.c \
   -o /tmp/torget-needs-you-send-test

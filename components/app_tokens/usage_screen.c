@@ -1,4 +1,5 @@
 #include "usage_screen.h"
+#include "models_presenter.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -155,16 +156,47 @@ typedef struct {
   lv_obj_t *cap_api, *cap_break, *cap_paid;
 } value_page;
 
+/* The tile columns must stay contiguous from zero: new_tile() uses each one
+ * as both the tileview column and the ui.tiles[] index, so a gap is an empty
+ * page nobody can reach and an overshoot is a write past the array. Both were
+ * real in the GitHub-disabled build before the VIEW_* enum started numbering
+ * itself. Cheap to assert, and it holds in every configuration. */
+_Static_assert(VIEW_VALUE == TK_USAGE_SCREEN_VIEWS - 1,
+               "Value must be the last tile column");
+_Static_assert(TK_USAGE_SCREEN_VIEWS ==
+                   TK_QUOTA_PAGES + TK_TRACKER_PAGES + 1 +
+                       TK_GITHUB_SCREEN_ENABLED + 1 + 1,
+               "tile count must equal the pages actually created");
+
+/* ------------------------------------------------------------- models */
+
+/* One row per model: what it is, what it cost, how much of the month it is,
+ * and how many tokens that took. The bar is sized by COST because that is
+ * what the page is ranked by; the token figure sits under it precisely so
+ * the disagreement between the two is visible rather than argued about. */
+typedef struct {
+  lv_obj_t *tile;
+  struct {
+    lv_obj_t *name;
+    lv_obj_t *usd;
+    lv_obj_t *track;
+    lv_obj_t *fill;
+    lv_obj_t *tokens;
+  } rows[TK_MODEL_ROWS_CAP];
+  lv_obj_t *empty;
+} models_page;
+
 static struct {
   lv_obj_t *tileview;
   lv_obj_t *tiles[TK_USAGE_SCREEN_VIEWS];
-  quota_page quotas[3];
+  quota_page quotas[TK_QUOTA_PAGES];
   forecast_row forecast_rows[2];
-  tracker_page trackers[2];
+  tracker_page trackers[TK_TRACKER_PAGES];
 #if TK_GITHUB_SCREEN_ENABLED
   github_page github;
 #endif
   value_page value;
+  models_page models;
   tk_tokens last_tokens;
   tk_agent_snapshot agent_snapshot;
   int64_t agent_applied_at_us;
@@ -341,9 +373,11 @@ static void create_pager(lv_obj_t *tile, int active) {
   }
 }
 
-#if TK_GITHUB_SCREEN_ENABLED
 static lv_obj_t *new_tile(int index);
 
+/* Not GitHub's: any page with a number too wide for the glass wants this.
+ * It lived inside the GitHub block until the models page needed it, where a
+ * GitHub-disabled build simply lost it. */
 static void compact_count(int32_t value, char *out, size_t cap) {
   if (value < 1000000) {
     snprintf(out, cap, "%ld", (long)value);
@@ -354,6 +388,7 @@ static void compact_count(int32_t value, char *out, size_t cap) {
   }
 }
 
+#if TK_GITHUB_SCREEN_ENABLED
 static void set_star_hero(int32_t stars) {
   char text[24];
   const lv_font_t *font = &plex_num_164;
@@ -578,6 +613,133 @@ static void create_burn_rate_page(void) {
 /* plex_money_35's line_height is 3 px taller than the quota stat font's, so
  * y=349 puts its digit ink on the family's 352 row. Do not "fix" to 352. */
 #define VALUE_STAT_Y 349
+
+/* The rows are centred in the band between the header hairline and the
+ * pager rather than pinned to the top, because the count is the user's, not
+ * ours: three models top-aligned leave the lower third empty and read as a
+ * page that failed to finish loading. Positions are therefore set when the
+ * data arrives, not when the page is built. */
+#define MODELS_BAND_TOP 96
+#define MODELS_BAND_BOTTOM 440
+#define MODELS_ROW_H 62
+#define MODELS_BAR_H 6
+#define MODELS_NAME_W 250
+
+static int models_row_y(int index, int count) {
+  int block = count * MODELS_ROW_H;
+  int band = MODELS_BAND_BOTTOM - MODELS_BAND_TOP;
+  int top = MODELS_BAND_TOP + (band - block) / 2;
+  if (top < MODELS_BAND_TOP) top = MODELS_BAND_TOP;
+  return top + index * MODELS_ROW_H;
+}
+
+static void create_models_page(void) {
+  models_page *page = &ui.models;
+  memset(page, 0, sizeof *page);
+  page->tile = new_tile(VIEW_MODELS);
+  create_analytics_header(page->tile, "MODELS", "MONTH TO DATE",
+                          "AT LIST API PRICES");
+
+  for (int index = 0; index < TK_MODEL_ROWS_CAP; index++) {
+    int y = models_row_y(index, TK_MODEL_ROWS_CAP);
+    page->rows[index].name = label(page->tile, &plex_ui_21, COL_WHITE,
+                                   VP_SAFE_X, y, MODELS_NAME_W, 28);
+    lv_obj_set_style_text_letter_space(page->rows[index].name, 1, 0);
+
+    page->rows[index].usd = label(page->tile, &plex_ui_21, COL_WHITE,
+                                  VP_SAFE_X + MODELS_NAME_W, y,
+                                  VP_CONTENT_W - MODELS_NAME_W, 28);
+    lv_obj_set_style_text_align(page->rows[index].usd,
+                                LV_TEXT_ALIGN_RIGHT, 0);
+
+    page->rows[index].track = bare(page->tile);
+    lv_obj_set_pos(page->rows[index].track, VP_SAFE_X, y + 30);
+    lv_obj_set_size(page->rows[index].track, VP_CONTENT_W, MODELS_BAR_H);
+    lv_obj_set_style_radius(page->rows[index].track, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(page->rows[index].track, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(page->rows[index].track, COL_TRACK, 0);
+    lv_obj_set_style_clip_corner(page->rows[index].track, true, 0);
+
+    page->rows[index].fill = bare(page->rows[index].track);
+    lv_obj_set_pos(page->rows[index].fill, 0, 0);
+    lv_obj_set_size(page->rows[index].fill, 0, MODELS_BAR_H);
+    lv_obj_set_style_bg_opa(page->rows[index].fill, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(page->rows[index].fill, COL_CLAUDE, 0);
+
+    page->rows[index].tokens = label(page->tile, &plex_ui_14, COL_MUTED,
+                                     VP_SAFE_X, y + 40, VP_CONTENT_W, 18);
+    lv_obj_set_style_text_letter_space(page->rows[index].tokens, 1, 0);
+  }
+
+  /* No split at all is dashes, never an empty chart: a blank page reads as
+   * "you used nothing this month", which would be a number we invented. */
+  page->empty = label(page->tile, &plex_ui_21, COL_MUTED,
+                      VP_SAFE_X, (MODELS_BAND_TOP + MODELS_BAND_BOTTOM) / 2,
+                      VP_CONTENT_W, 30);
+  lv_obj_set_style_text_align(page->empty, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(page->empty, "\u2013");
+
+  create_pager(page->tile, VIEW_MODELS);
+}
+
+static void apply_models(const tk_tokens *tokens) {
+  models_page *page = &ui.models;
+  if (!page->tile) return;
+
+  tk_models_view view;
+  tk_models_build(tokens, &view);
+
+  if (!view.has_data) {
+    lv_obj_remove_flag(page->empty, LV_OBJ_FLAG_HIDDEN);
+    for (int index = 0; index < TK_MODEL_ROWS_CAP; index++) {
+      lv_obj_add_flag(page->rows[index].name, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(page->rows[index].usd, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(page->rows[index].track, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(page->rows[index].tokens, LV_OBJ_FLAG_HIDDEN);
+    }
+    return;
+  }
+  lv_obj_add_flag(page->empty, LV_OBJ_FLAG_HIDDEN);
+
+  for (int index = 0; index < TK_MODEL_ROWS_CAP; index++) {
+    bool live = index < view.count;
+    if (!live) {
+      lv_obj_add_flag(page->rows[index].name, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(page->rows[index].usd, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(page->rows[index].track, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(page->rows[index].tokens, LV_OBJ_FLAG_HIDDEN);
+      continue;
+    }
+    lv_obj_remove_flag(page->rows[index].name, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(page->rows[index].usd, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(page->rows[index].track, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(page->rows[index].tokens, LV_OBJ_FLAG_HIDDEN);
+
+    int y = models_row_y(index, view.count);
+    lv_obj_set_y(page->rows[index].name, y);
+    lv_obj_set_y(page->rows[index].usd, y);
+    lv_obj_set_y(page->rows[index].track, y + 30);
+    lv_obj_set_y(page->rows[index].tokens, y + 40);
+
+    const tk_models_row *row = &view.rows[index];
+    lv_label_set_text(page->rows[index].name, row->name);
+
+    char money[24];
+    snprintf(money, sizeof money, "$%.2f", row->usd);
+    lv_label_set_text(page->rows[index].usd, money);
+
+    int width = (int)(row->cost_share * VP_CONTENT_W + 0.5);
+    if (width < 0) width = 0;
+    if (width > VP_CONTENT_W) width = VP_CONTENT_W;
+    lv_obj_set_size(page->rows[index].fill, width, MODELS_BAR_H);
+
+    char tokens_text[48], compact[24];
+    compact_count((int32_t)row->tokens, compact, sizeof compact);
+    snprintf(tokens_text, sizeof tokens_text, "%s TOKENS  %d%%",
+             compact, (int)(row->token_share * 100 + 0.5));
+    lv_label_set_text(page->rows[index].tokens, tokens_text);
+  }
+}
 
 static void create_value_page(void) {
   value_page *page = &ui.value;
@@ -1011,14 +1173,19 @@ void usage_screen_create(lv_obj_t *root) {
                     USAGE_QUOTA_CLAUDE_MODEL, USAGE_PROVIDER_CLAUDE);
   create_quota_page(&ui.quotas[1], VIEW_CLAUDE_ALL,
                     USAGE_QUOTA_CLAUDE_ALL, USAGE_PROVIDER_CLAUDE);
+#if TK_CODEX_SCREENS_ENABLED
   create_quota_page(&ui.quotas[2], VIEW_CODEX_WEEKLY,
                     USAGE_QUOTA_CODEX_WEEK, USAGE_PROVIDER_CODEX);
+#endif
   create_burn_rate_page();
   create_tracker_page(&ui.trackers[0], VIEW_TRACKER_CLAUDE, false);
+#if TK_CODEX_SCREENS_ENABLED
   create_tracker_page(&ui.trackers[1], VIEW_TRACKER_CODEX, true);
+#endif
 #if TK_GITHUB_SCREEN_ENABLED
   create_github_page();
 #endif
+  create_models_page();
   create_value_page();
 #if TK_GITHUB_NOTIFICATIONS_ENABLED
   /* Created before the agent monitor: NEEDS YOU/ERROR/DONE always retain
@@ -1031,17 +1198,18 @@ void usage_screen_create(lv_obj_t *root) {
 void usage_screen_apply_tokens(const tk_tokens *tokens) {
   if (!tokens) return;
   ui.last_tokens = *tokens;
-  for (int i = 0; i < 3; i++) apply_quota(&ui.quotas[i], tokens);
+  for (int i = 0; i < TK_QUOTA_PAGES; i++) apply_quota(&ui.quotas[i], tokens);
   usage_forecast_page_view forecasts = {0};
   usage_presenter_build_forecasts(tokens, &forecasts);
   for (int i = 0; i < 2; i++)
     apply_forecast_row(&ui.forecast_rows[i], &forecasts.rows[i]);
+  apply_models(tokens);
   apply_value(tokens);
 }
 
 void usage_screen_apply_max_tracker(const tk_max_tracker *t) {
   if (!t) return;
-  for (int i = 0; i < 2; i++) apply_tracker_page(&ui.trackers[i], t);
+  for (int i = 0; i < TK_TRACKER_PAGES; i++) apply_tracker_page(&ui.trackers[i], t);
 }
 
 void usage_screen_apply_github(const tk_github_status *status) {
@@ -1075,8 +1243,8 @@ void usage_screen_apply_agent(const tk_agent_snapshot *snapshot,
   ui.agent_applied_at_us = now_us;
   ui.last_now_us = now_us;
   ui.has_agent_snapshot = true;
-  for (int i = 0; i < 3; i++) refresh_header(&ui.quotas[i], now_us);
-  for (int i = 0; i < 2; i++) refresh_tracker_header(&ui.trackers[i], now_us);
+  for (int i = 0; i < TK_QUOTA_PAGES; i++) refresh_header(&ui.quotas[i], now_us);
+  for (int i = 0; i < TK_TRACKER_PAGES; i++) refresh_tracker_header(&ui.trackers[i], now_us);
   tk_agent_monitor_apply(snapshot, now_us);
 }
 
@@ -1089,15 +1257,15 @@ void usage_screen_apply_agent_status_relay(
   ui.agent_applied_at_us = now_us;
   ui.last_now_us = now_us;
   ui.has_agent_snapshot = true;
-  for (int i = 0; i < 3; i++) refresh_header(&ui.quotas[i], now_us);
-  for (int i = 0; i < 2; i++) refresh_tracker_header(&ui.trackers[i], now_us);
+  for (int i = 0; i < TK_QUOTA_PAGES; i++) refresh_header(&ui.quotas[i], now_us);
+  for (int i = 0; i < TK_TRACKER_PAGES; i++) refresh_tracker_header(&ui.trackers[i], now_us);
   tk_agent_monitor_apply_status_relay(snapshot, now_us);
 }
 
 void usage_screen_tick(int64_t now_us) {
   ui.last_now_us = now_us;
-  for (int i = 0; i < 3; i++) refresh_header(&ui.quotas[i], now_us);
-  for (int i = 0; i < 2; i++) refresh_tracker_header(&ui.trackers[i], now_us);
+  for (int i = 0; i < TK_QUOTA_PAGES; i++) refresh_header(&ui.quotas[i], now_us);
+  for (int i = 0; i < TK_TRACKER_PAGES; i++) refresh_tracker_header(&ui.trackers[i], now_us);
   tk_agent_monitor_tick(now_us);
 #if TK_GITHUB_NOTIFICATIONS_ENABLED
   tk_project_star_popup_tick(now_us);
@@ -1106,9 +1274,9 @@ void usage_screen_tick(int64_t now_us) {
 
 void usage_screen_set_stale(bool stale) {
   ui.stale = stale;
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < TK_QUOTA_PAGES; i++)
     refresh_header(&ui.quotas[i], ui.last_now_us);
-  for (int i = 0; i < 2; i++)
+  for (int i = 0; i < TK_TRACKER_PAGES; i++)
     refresh_tracker_header(&ui.trackers[i], ui.last_now_us);
 }
 

@@ -14,20 +14,34 @@ attention_fonts = (
     (root / "platform/fonts/plex_attention_52.c", "plex_attention_52"),
 )
 
-assert (
-    "#define TK_USAGE_SCREEN_VIEWS (6 + TK_GITHUB_SCREEN_ENABLED + 1)" in header
+# The tile columns are numbered by the compiler and the count is the enum's
+# own tail, so that optional pages cannot leave a hole (an unreachable blank
+# column) or an overshoot (a write past ui.tiles[]). Assert the CONTRACT --
+# swipe order, Value last, count derived -- rather than literal indices,
+# which is what previously baked the GitHub-off off-by-one into the tests.
+assert "TK_USAGE_SCREEN_VIEWS," in app_header, \
+    "the view count must be the last enumerator, not a hand-written macro"
+assert "#define TK_USAGE_SCREEN_VIEWS" not in header, \
+    "the count must not be re-derived by hand in usage_screen.h"
+_order = (
+    "VIEW_CLAUDE_FABLE",
+    "VIEW_CLAUDE_ALL",
+    "VIEW_CODEX_WEEKLY",
+    "VIEW_BURN_RATE",
+    "VIEW_TRACKER_CLAUDE",
+    "VIEW_TRACKER_CODEX",
+    "VIEW_GITHUB",
+    "VIEW_MODELS",
+    "VIEW_VALUE",
+    "TK_USAGE_SCREEN_VIEWS",
 )
-for enum_literal in (
-    "VIEW_CLAUDE_FABLE = 0",
-    "VIEW_CLAUDE_ALL = 1",
-    "VIEW_CODEX_WEEKLY = 2",
-    "VIEW_BURN_RATE = 3",
-    "VIEW_TRACKER_CLAUDE = 4",
-    "VIEW_TRACKER_CODEX = 5",
-    "VIEW_GITHUB = 6",
-    "VIEW_VALUE = 7",
-):
-    assert enum_literal in app_header
+_positions = [app_header.index(name) for name in _order]
+assert _positions == sorted(_positions), \
+    "tile columns must stay in swipe order, with Value last before the count"
+# Codex's two pages and the GitHub page are the optional ones.
+for optional in ("VIEW_CODEX_WEEKLY", "VIEW_TRACKER_CODEX"):
+    assert "#if TK_CODEX_SCREENS_ENABLED" in app_header
+assert "#if TK_GITHUB_SCREEN_ENABLED" in app_header
 assert "VIEW_VOLUME" not in app_header
 
 for removed in (

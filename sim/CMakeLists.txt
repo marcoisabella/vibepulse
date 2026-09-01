@@ -72,6 +72,8 @@ add_executable(torget-sim
   ../components/app_tokens/usage_live_policy.c
   ../components/app_tokens/agent_completion_policy.c
   ../components/app_tokens/needs_you_policy.c
+  ../components/app_tokens/page_rotation.c
+  ../components/app_tokens/models_presenter.c
   ../components/app_tokens/interaction_relay_policy.c
   ../components/app_tokens/agent_status_source_policy.c
   ../components/app_tokens/needs_you_send_policy.c

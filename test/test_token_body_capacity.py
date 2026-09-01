@@ -74,6 +74,17 @@ def worst_case_payload() -> dict:
         "claudeModelWeekStale": False,
         "codexWeekStale": False,
     }
+    # Month-to-date split by model: MODEL_ROWS_MAX rows plus the OTHER
+    # rollup, each at its widest -- the label bound agent_status enforces,
+    # a month of tokens, and a six-figure spend.
+    payload["models"] = [
+        {
+            "model": "M" * 24,
+            "tokens": 9_999_999_999_999,
+            "usd": 999_999.99,
+        }
+        for _ in range(5)
+    ]
     for prefix in ("claude", "codex"):
         payload[f"{prefix}ForecastState"] = "unavailable"
         payload[f"{prefix}ForecastPctAtReset"] = 100

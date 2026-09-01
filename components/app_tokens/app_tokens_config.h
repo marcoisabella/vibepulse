@@ -29,6 +29,28 @@
 #define TK_GITHUB_RELAY_URL      NULL
 #endif
 
+/* Codex's own pages — its weekly quota and its Max Tracker heatmap — for
+ * people who run Codex. Someone who only runs Claude is otherwise made to
+ * swipe past two permanently dashed pages forever, and on a rotating panel
+ * to WAIT on them. On by default so a fresh clone still shows both
+ * providers; turn it off in secrets.h.
+ *
+ * This governs the PAGES only. Codex's live agent rows and its Needs You
+ * takeover are driven by whether Codex is actually running and are not
+ * affected — a panel with the pages off still announces a waiting Codex. */
+#ifndef TK_CODEX_SCREENS_ENABLED
+#define TK_CODEX_SCREENS_ENABLED 1
+#endif
+
+#if TK_CODEX_SCREENS_ENABLED != 0 && TK_CODEX_SCREENS_ENABLED != 1
+#error "TK_CODEX_SCREENS_ENABLED must be 0 or 1"
+#endif
+
+/* Quota pages: Claude's model week and Claude's whole week, plus Codex's
+ * week when its pages are on. Tracker pages: Claude's, plus Codex's. */
+#define TK_QUOTA_PAGES   (2 + TK_CODEX_SCREENS_ENABLED)
+#define TK_TRACKER_PAGES (1 + TK_CODEX_SCREENS_ENABLED)
+
 /* The GitHub page and star popup are deliberately independent. A fresh clone
  * remains Claude/Codex-only until the user opts in through secrets.h. */
 #ifndef TK_GITHUB_SCREEN_ENABLED

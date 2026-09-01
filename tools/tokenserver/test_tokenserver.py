@@ -4258,3 +4258,96 @@ class ProbeTransitionLogTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ModelBreakdownTests(unittest.TestCase):
+    """Month-to-date usage split by model.
+
+    The scan already knows which model produced every record -- it prices
+    each one -- so the breakdown costs nothing to collect and, unlike the
+    quota pages, survives an upstream 429 because it never leaves the disk.
+    """
+
+    def setUp(self):
+        self.previous_cache = tokenserver._file_cache
+        tokenserver._file_cache = {}
+
+    def tearDown(self):
+        tokenserver._file_cache = self.previous_cache
+
+    @staticmethod
+    def _line(message_id, model, output_tokens, session="session-a"):
+        return json.dumps({
+            "timestamp": datetime.now().astimezone().isoformat(),
+            "sessionId": session,
+            "requestId": f"request-{message_id}",
+            "message": {
+                "id": message_id,
+                "model": model,
+                "usage": {"output_tokens": output_tokens},
+            },
+        }) + "\n"
+
+    def _models_for(self, lines):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            projects = Path(temp_dir)
+            (projects / "session.jsonl").write_text("".join(lines))
+            return tokenserver._compute(projects)["models"]
+
+    def test_splits_the_month_by_model_ranked_by_cost(self):
+        models = self._models_for([
+            self._line("a", "claude-sonnet-5", 2_000),
+            self._line("b", "claude-opus-5", 5_000),
+            self._line("c", "claude-haiku-4-5-20251001", 1_000),
+        ])
+        self.assertEqual([row["model"] for row in models],
+                         ["OPUS 5", "SONNET 5", "HAIKU 4.5"])
+        self.assertEqual([row["tokens"] for row in models],
+                         [5_000, 2_000, 1_000])
+        costs = [row["usd"] for row in models]
+        self.assertEqual(costs, sorted(costs, reverse=True))
+        self.assertTrue(all(cost > 0 for cost in costs))
+
+    def test_one_model_used_twice_is_summed_not_listed_twice(self):
+        models = self._models_for([
+            self._line("a", "claude-opus-5", 1_000),
+            self._line("b", "claude-opus-5", 3_000),
+        ])
+        self.assertEqual(len(models), 1)
+        self.assertEqual(models[0]["tokens"], 4_000)
+
+    def test_a_replayed_record_is_not_counted_twice(self):
+        """Same messageId+requestId from two files: the scan already
+        de-duplicates for the month total, and the split must agree with it
+        or the page will not reconcile with the Value page."""
+        line = self._line("a", "claude-opus-5", 1_000)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            projects = Path(temp_dir)
+            (projects / "one.jsonl").write_text(line)
+            (projects / "two.jsonl").write_text(line)
+            result = tokenserver._compute(projects)
+        self.assertEqual(result["models"][0]["tokens"], 1_000)
+        self.assertEqual(result["monthTokens"], 1_000)
+
+    def test_a_model_the_labels_do_not_know_still_appears(self):
+        models = self._models_for([
+            self._line("a", "some-future-model-9", 1_000),
+        ])
+        self.assertEqual(len(models), 1)
+        self.assertTrue(models[0]["model"])
+
+    def test_beyond_four_models_the_tail_becomes_one_other_row(self):
+        """The panel has room for a handful of rows and the body buffer is
+        finite, so the tail rolls up rather than truncating -- a dropped row
+        would make the shares silently stop summing."""
+        models = self._models_for([
+            self._line(f"m{i}", f"model-{i}", 6_000 - i * 100)
+            for i in range(7)
+        ])
+        self.assertEqual(len(models), 5)
+        self.assertEqual(models[-1]["model"], "OTHER")
+        self.assertEqual(models[-1]["tokens"],
+                         sum(6_000 - i * 100 for i in range(4, 7)))
+
+    def test_no_usage_yields_no_rows_rather_than_a_zero_row(self):
+        self.assertEqual(self._models_for([]), [])

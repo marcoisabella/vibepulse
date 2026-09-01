@@ -7,6 +7,8 @@
 
 #include "torget_app.h"
 
+#include "app_tokens_config.h"
+
 #include "tokens.h"
 #include "agent_status.h"
 #include "github_status.h"
@@ -23,15 +25,35 @@
 
 extern const torget_app_t tokens_app;
 
+/* Tile columns, in swipe order. These are POSITIONS, not names: new_tile()
+ * feeds each one straight to lv_tileview_add_tile() and to ui.tiles[], so
+ * they must stay contiguous from zero in every build configuration.
+ *
+ * Hence no hard-coded numbers and no optional page left defined when it is
+ * compiled out. Previously the last two were pinned at 6 and 7 while the
+ * count was written out by hand as (6 + GITHUB + 1); with GitHub off that
+ * left column 6 empty and put the Value page at 7, one past the end of
+ * ui.tiles[]. Letting the compiler number these — and taking the count from
+ * the enum's own tail — makes that class of drift unrepresentable. */
 enum {
   VIEW_CLAUDE_FABLE = 0,
-  VIEW_CLAUDE_ALL = 1,
-  VIEW_CODEX_WEEKLY = 2,
-  VIEW_BURN_RATE = 3,
-  VIEW_TRACKER_CLAUDE = 4,
-  VIEW_TRACKER_CODEX = 5,
-  VIEW_GITHUB = 6,
-  VIEW_VALUE = 7,
+  VIEW_CLAUDE_ALL,
+#if TK_CODEX_SCREENS_ENABLED
+  VIEW_CODEX_WEEKLY,
+#endif
+  VIEW_BURN_RATE,
+  VIEW_TRACKER_CLAUDE,
+#if TK_CODEX_SCREENS_ENABLED
+  VIEW_TRACKER_CODEX,
+#endif
+#if TK_GITHUB_SCREEN_ENABLED
+  VIEW_GITHUB,
+#endif
+  VIEW_MODELS,
+  VIEW_VALUE,
+
+  /* Always last: the number of tiles this build has. */
+  TK_USAGE_SCREEN_VIEWS,
 };
 
 /* Ett lyckat /api/tokens-svar. Snappar tickern, stämplar färskhet och

@@ -1250,6 +1250,33 @@ static int run_vibepulse_static_qa(void) {
   tokens_show_view(VIEW_VALUE);
   dump_frame("vibepulse-value-ahead");
 
+  /* The month-to-date model split, with the disagreement the page exists to
+   * show: the dearest model is not the one with the most tokens. */
+  tk_tokens models_truth = value_truth;
+  models_truth.model_count = 3;
+  snprintf(models_truth.models[0].name, sizeof models_truth.models[0].name,
+           "%s", "OPUS 5");
+  models_truth.models[0].tokens = 1790547939.0;
+  models_truth.models[0].usd = 1205.73;
+  snprintf(models_truth.models[1].name, sizeof models_truth.models[1].name,
+           "%s", "SONNET 5");
+  models_truth.models[1].tokens = 227917396.0;
+  models_truth.models[1].usd = 66.53;
+  snprintf(models_truth.models[2].name, sizeof models_truth.models[2].name,
+           "%s", "HAIKU 4.5");
+  models_truth.models[2].tokens = 5673784.0;
+  models_truth.models[2].usd = 0.93;
+  tokens_apply(&models_truth);
+  tokens_show_view(VIEW_MODELS);
+  dump_frame("vibepulse-models");
+
+  /* No split at all: dashes, not an empty chart. */
+  tk_tokens models_none = value_truth;
+  models_none.model_count = 0;
+  tokens_apply(&models_none);
+  tokens_show_view(VIEW_MODELS);
+  dump_frame("vibepulse-models-empty");
+
   /* Early in the month: below break-even, so the bar is partial and the
    * hero keeps two decimals rather than rounding up to a false 1.0. */
   tk_tokens value_early = value_truth;

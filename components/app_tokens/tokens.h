@@ -5,6 +5,18 @@
 
 #define TK_QUOTA_LABEL_CAP 17
 
+/* Month-to-date usage split by model: the service's four dearest rows plus
+ * its OTHER rollup. The name cap matches the 24-byte bound agent_status
+ * puts on every model label, plus the terminator. */
+#define TK_MODEL_ROWS_CAP 5
+#define TK_MODEL_NAME_CAP 25
+
+typedef struct {
+  char name[TK_MODEL_NAME_CAP];
+  double tokens;
+  double usd;   /* at list API prices, like the value block */
+} tk_model_row;
+
 /*
  * Speglar Mac-tjänstens /api/tokens (kontrakt v2) minus transportfälten —
  * VibePulse-datats kontrakt enligt glance-mönstret: platt JSON, tal inte
@@ -111,6 +123,12 @@ typedef struct {
   int has_ota_available_version;
   tk_forecast claude_forecast, codex_forecast;
   tk_value value;
+  /* Where the month actually went, dearest first. Built from the Mac's own
+   * session logs rather than the quota API, so these rows stay real while an
+   * upstream 429 has the quota windows dashed. Absent key = zero rows and a
+   * page of dashes, never an invented split. */
+  tk_model_row models[TK_MODEL_ROWS_CAP];
+  int model_count;
 } tk_tokens;
 
 #endif

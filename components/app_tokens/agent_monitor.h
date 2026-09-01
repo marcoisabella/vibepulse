@@ -52,4 +52,9 @@ void tk_agent_monitor_set_needs_you_cb(tk_agent_monitor_needs_you_cb cb);
 void tk_agent_monitor_needs_you_tap(void);
 void tk_agent_monitor_needs_you_press(tk_needs_you_verdict verdict);
 
+/* Is the "Needs You" takeover currently owning the glass? Read by the page
+ * rotation, which must never turn a page underneath a decision someone is
+ * being asked to make. Reports what is on screen; decides nothing. */
+bool tk_agent_monitor_needs_you_visible(void);
+
 #endif

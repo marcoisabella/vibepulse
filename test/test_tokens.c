@@ -84,6 +84,84 @@ static void check_rejected_bytes_untouched(const char *what, const char *json,
   check(preserved, memcmp(&before, out, sizeof before) == 0);
 }
 
+
+/* ---------------------------------------------------------------- models */
+
+/* The month-to-date split. Its rows come from local session logs, so they
+ * must survive every quota field being null -- that is the case the page
+ * exists for. */
+static void test_models_rows_are_parsed_in_service_order(void) {
+  tk_tokens t;
+  const char *body =
+      "{\"v\":2,\"dayTokens\":1,\"dayTokensPerHour\":1,\"daySessions\":1,"
+      "\"monthTokens\":9," BASE_NULLS ","
+      "\"models\":["
+      "{\"model\":\"OPUS 5\",\"tokens\":5,\"usd\":12.5},"
+      "{\"model\":\"SONNET 5\",\"tokens\":3,\"usd\":2.25},"
+      "{\"model\":\"HAIKU 4.5\",\"tokens\":1,\"usd\":0.1}]}";
+  check("models body parses", PARSE(body, &t));
+  check("three rows", t.model_count == 3);
+  check("first row name", strcmp(t.models[0].name, "OPUS 5") == 0);
+  check("first row tokens", t.models[0].tokens == 5);
+  check("first row usd", t.models[0].usd == 12.5);
+  check("last row name", strcmp(t.models[2].name, "HAIKU 4.5") == 0);
+}
+
+static void test_absent_models_key_leaves_no_rows(void) {
+  tk_tokens t;
+  const char *body =
+      "{\"v\":2,\"dayTokens\":1,\"dayTokensPerHour\":1,\"daySessions\":1,"
+      "\"monthTokens\":9," BASE_NULLS "}";
+  check("body without models parses", PARSE(body, &t));
+  check("no rows", t.model_count == 0);
+}
+
+/* More rows than the panel can hold must not walk off the array. */
+static void test_more_rows_than_the_cap_are_bounded(void) {
+  tk_tokens t;
+  const char *body =
+      "{\"v\":2,\"dayTokens\":1,\"dayTokensPerHour\":1,\"daySessions\":1,"
+      "\"monthTokens\":9," BASE_NULLS ","
+      "\"models\":["
+      "{\"model\":\"A\",\"tokens\":1,\"usd\":9},"
+      "{\"model\":\"B\",\"tokens\":1,\"usd\":8},"
+      "{\"model\":\"C\",\"tokens\":1,\"usd\":7},"
+      "{\"model\":\"D\",\"tokens\":1,\"usd\":6},"
+      "{\"model\":\"E\",\"tokens\":1,\"usd\":5},"
+      "{\"model\":\"F\",\"tokens\":1,\"usd\":4},"
+      "{\"model\":\"G\",\"tokens\":1,\"usd\":3}]}";
+  check("oversized models body parses", PARSE(body, &t));
+  check("row count is capped", t.model_count == TK_MODEL_ROWS_CAP);
+  check("capped rows keep service order",
+        strcmp(t.models[TK_MODEL_ROWS_CAP - 1].name, "E") == 0);
+}
+
+/* A malformed row must not produce a half-row: dashes beat a wrong split. */
+static void test_a_broken_row_drops_the_whole_block(void) {
+  tk_tokens t;
+  const char *body =
+      "{\"v\":2,\"dayTokens\":1,\"dayTokensPerHour\":1,\"daySessions\":1,"
+      "\"monthTokens\":9," BASE_NULLS ","
+      "\"models\":["
+      "{\"model\":\"OPUS 5\",\"tokens\":5,\"usd\":12.5},"
+      "{\"model\":\"SONNET 5\",\"tokens\":\"three\",\"usd\":2.25}]}";
+  check("broken row body still parses", PARSE(body, &t));
+  check("no partial split is shown", t.model_count == 0);
+}
+
+static void test_a_name_longer_than_the_cap_is_bounded(void) {
+  tk_tokens t;
+  const char *body =
+      "{\"v\":2,\"dayTokens\":1,\"dayTokensPerHour\":1,\"daySessions\":1,"
+      "\"monthTokens\":9," BASE_NULLS ","
+      "\"models\":[{\"model\":"
+      "\"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\",\"tokens\":1,\"usd\":1}]}";
+  check("long name body parses", PARSE(body, &t));
+  check("one row", t.model_count == 1);
+  check("name is NUL-terminated inside the cap",
+        strlen(t.models[0].name) == TK_MODEL_NAME_CAP - 1);
+}
+
 int main(void) {
   size_t len;
   char *json;
@@ -631,6 +709,12 @@ int main(void) {
     check("utan value-nyckel är unavailable",
           v.value.state == TK_VALUE_UNAVAILABLE);
   }
+
+  test_models_rows_are_parsed_in_service_order();
+  test_absent_models_key_leaves_no_rows();
+  test_more_rows_than_the_cap_are_bounded();
+  test_a_broken_row_drops_the_whole_block();
+  test_a_name_longer_than_the_cap_is_bounded();
 
   if (failures == 0) { printf("OK: alla tokens-tester gröna\n"); return 0; }
   printf("%d test föll\n", failures);

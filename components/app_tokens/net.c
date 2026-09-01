@@ -31,7 +31,7 @@
 static const char *TAG = "tokens";
 
 #define FETCH_EVERY_MS 30000
-#define BODY_MAX 2048
+#define BODY_MAX 3072
 #define RECOVERY_CHECK_MS 5000
 #define TOKENS_STALE_AFTER_US (120LL * 1000000LL)
 

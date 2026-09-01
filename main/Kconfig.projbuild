@@ -27,3 +27,39 @@ config TK_VIBEPULSE_AGENT_STATUS_RELAY
         status has been unavailable for five seconds. Direct LAN always wins.
         This switch is independent and remains off in a fresh clone.
 endmenu
+
+menu "VibePulse panel behaviour"
+config TK_PAGE_AUTO_ADVANCE
+        bool "Turn the pages automatically"
+        default y
+        help
+          The panel advances through its views on its own, so a shelf screen
+          shows everything it knows instead of whichever page was last swiped
+          to. Also spreads the image across the AMOLED rather than holding one
+          frame for hours. A finger always wins: touching the glass holds the
+          page, and rotation resumes only after the panel has been left alone.
+          Nothing rotates while a NEEDS YOU takeover is on screen.
+
+config TK_PAGE_AUTO_ADVANCE_S
+        int "Seconds each page holds"
+        depends on TK_PAGE_AUTO_ADVANCE
+        range 3 120
+        default 10
+        help
+          Ten seconds is the calm end of signage practice: long enough to notice
+          the change and read the page from across the room, short enough that a
+          full cycle stays under a couple of minutes. Below about five it starts
+          to read as busy in peripheral vision, which is the opposite of what an
+          ambient display is for.
+
+config TK_PAGE_RESUME_AFTER_S
+        int "Seconds of stillness before rotation resumes"
+        depends on TK_PAGE_AUTO_ADVANCE
+        range 5 600
+        default 45
+        help
+          How long the panel waits after the last touch before turning pages
+          again. This is the guard against the classic carousel failure: the
+          screen moving on while someone is still reading the page they
+          deliberately swiped to.
+endmenu

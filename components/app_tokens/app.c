@@ -13,6 +13,8 @@
 #endif
 #include "torget.h"
 #include "usage_screen.h"
+#include "agent_monitor.h"
+#include "page_rotation.h"
 
 #ifdef ESP_PLATFORM
 #include "secrets.h"
@@ -27,11 +29,26 @@ extern const lv_font_t plex_icon_64;
 #define STALE_AFTER_US (120LL * 1000000LL)
 #define TICK_EVERY_MS 100
 
+/* The simulator has no Kconfig, and a bench that does not rotate cannot show
+ * what the shelf does. Defaults live here so both builds behave alike. */
+#if !defined(ESP_PLATFORM) || defined(CONFIG_TK_PAGE_AUTO_ADVANCE)
+#define TK_PAGE_AUTO_ADVANCE_ENABLED 1
+#else
+#define TK_PAGE_AUTO_ADVANCE_ENABLED 0
+#endif
+#ifndef CONFIG_TK_PAGE_AUTO_ADVANCE_S
+#define CONFIG_TK_PAGE_AUTO_ADVANCE_S 10
+#endif
+#ifndef CONFIG_TK_PAGE_RESUME_AFTER_S
+#define CONFIG_TK_PAGE_RESUME_AFTER_S 45
+#endif
+
 static struct {
   int64_t last_success_us;
   bool has_data;
   bool stale;
   tk_agent_source_policy agent_source;
+  tk_page_rotation_state rotation;
 } app;
 
 void tokens_apply(const tk_tokens *tokens) {
@@ -127,6 +144,28 @@ static void tick_cb(lv_timer_t *timer) {
   }
 #endif
 
+#if TK_PAGE_AUTO_ADVANCE_ENABLED
+  {
+    /* Inactivity comes from LVGL rather than our own touch bookkeeping: it
+     * counts every input the panel saw, including the swipe that landed on
+     * this very page, which is exactly what "leave the reader alone" means. */
+    const tk_page_rotation_cfg rotation = {
+      .dwell_ms = CONFIG_TK_PAGE_AUTO_ADVANCE_S * 1000,
+      .resume_after_ms = CONFIG_TK_PAGE_RESUME_AFTER_S * 1000,
+      .view_count = TK_USAGE_SCREEN_VIEWS,
+    };
+    int next = tk_page_rotation_next(
+        &rotation, &app.rotation, usage_screen_current_view(), now_us,
+        lv_display_get_inactive_time(NULL),
+        tk_agent_monitor_needs_you_visible());
+    /* A hard cut, like every other view switch: usage_screen.c is under the
+     * physical static gate (test_vibepulse_layout_wiring.py), so motion waits
+     * for a static review on the real panel. The timer lives HERE, outside
+     * that gate, which is why the rotation can exist at all. */
+    if (next >= 0) usage_screen_show_view(next);
+  }
+#endif
+
   bool stale = app.has_data && now_us - app.last_success_us > STALE_AFTER_US;
   if (stale != app.stale) {
     app.stale = stale;
@@ -139,6 +178,10 @@ void tokens_net_start(void);
 static void create(lv_obj_t *root) {
   memset(&app, 0, sizeof app);
   tk_agent_source_policy_init(&app.agent_source);
+  /* Start the first dwell at boot. Zeroed state would read as "last turned
+   * the page in 1970" and flip a page on the very first tick, before anyone
+   * had a chance to see the page the panel starts on. */
+  tk_page_rotation_reset(&app.rotation, torget_now_us());
   usage_screen_create(root);
   lv_timer_create(tick_cb, TICK_EVERY_MS, NULL);
 
