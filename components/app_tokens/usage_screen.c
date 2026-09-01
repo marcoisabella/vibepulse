@@ -170,19 +170,19 @@ _Static_assert(TK_USAGE_SCREEN_VIEWS ==
 
 /* ------------------------------------------------------------- models */
 
-/* One row per model: what it is, what it cost, how much of the month it is,
- * and how many tokens that took. The bar is sized by COST because that is
- * what the page is ranked by; the token figure sits under it precisely so
- * the disagreement between the two is visible rather than argued about. */
+/* Where the month went, built to the family's rhythm rather than as a table.
+ * The design system's shape is ONE dominant metric with the bar under it, and
+ * these pages are read from across a room: three equal rows of 14 px type is
+ * a spreadsheet. So the dearest model gets the quota hero's own font and
+ * baseline, and everything else is rounded to one quiet line each. */
 typedef struct {
   lv_obj_t *tile;
-  struct {
-    lv_obj_t *name;
-    lv_obj_t *usd;
-    lv_obj_t *track;
-    lv_obj_t *fill;
-    lv_obj_t *tokens;
-  } rows[TK_MODEL_ROWS_CAP];
+  lv_obj_t *name;   /* the dominant model, on the quota pages' label row */
+  lv_obj_t *hero;   /* its share of the month's cost */
+  lv_obj_t *money;  /* its dollars and tokens, secondary */
+  lv_obj_t *track;
+  lv_obj_t *fill;
+  lv_obj_t *rest[TK_MODEL_ROWS_CAP - 1];
   lv_obj_t *empty;
 } models_page;
 
@@ -614,24 +614,11 @@ static void create_burn_rate_page(void) {
  * y=349 puts its digit ink on the family's 352 row. Do not "fix" to 352. */
 #define VALUE_STAT_Y 349
 
-/* The rows are centred in the band between the header hairline and the
- * pager rather than pinned to the top, because the count is the user's, not
- * ours: three models top-aligned leave the lower third empty and read as a
- * page that failed to finish loading. Positions are therefore set when the
- * data arrives, not when the page is built. */
-#define MODELS_BAND_TOP 96
-#define MODELS_BAND_BOTTOM 440
-#define MODELS_ROW_H 62
-#define MODELS_BAR_H 6
-#define MODELS_NAME_W 250
-
-static int models_row_y(int index, int count) {
-  int block = count * MODELS_ROW_H;
-  int band = MODELS_BAND_BOTTOM - MODELS_BAND_TOP;
-  int top = MODELS_BAND_TOP + (band - block) / 2;
-  if (top < MODELS_BAND_TOP) top = MODELS_BAND_TOP;
-  return top + index * MODELS_ROW_H;
-}
+#define MODELS_NAME_Y 72
+#define MODELS_MONEY_Y 66   /* money runs 35 px tall; sits on the name row */
+#define MODELS_HERO_Y 150
+#define MODELS_REST_Y0 340
+#define MODELS_REST_H 26
 
 static void create_models_page(void) {
   models_page *page = &ui.models;
@@ -640,46 +627,64 @@ static void create_models_page(void) {
   create_analytics_header(page->tile, "MODELS", "MONTH TO DATE",
                           "AT LIST API PRICES");
 
-  for (int index = 0; index < TK_MODEL_ROWS_CAP; index++) {
-    int y = models_row_y(index, TK_MODEL_ROWS_CAP);
-    page->rows[index].name = label(page->tile, &plex_ui_21, COL_WHITE,
-                                   VP_SAFE_X, y, MODELS_NAME_W, 28);
-    lv_obj_set_style_text_letter_space(page->rows[index].name, 1, 0);
+  /* Same label row the quota pages use, so swiping between them does not
+   * move the eye. */
+  page->name = label(page->tile, &plex_ui_21, COL_LABEL,
+                     VP_SAFE_X, MODELS_NAME_Y, 200, 26);
+  lv_obj_set_style_text_letter_space(page->name, 2, 0);
 
-    page->rows[index].usd = label(page->tile, &plex_ui_21, COL_WHITE,
-                                  VP_SAFE_X + MODELS_NAME_W, y,
-                                  VP_CONTENT_W - MODELS_NAME_W, 28);
-    lv_obj_set_style_text_align(page->rows[index].usd,
-                                LV_TEXT_ALIGN_RIGHT, 0);
+  /* The quota pages' percent box, verbatim -- same x, width, height and
+   * tracking -- so the number does not jump when you swipe between them and
+   * a three-glyph value cannot spill into the row below. */
+  page->hero = label(page->tile, &plex_num_164, COL_WHITE,
+                     16, VP_PERCENT_Y, 448, 190);
+  lv_obj_set_style_text_letter_space(page->hero, -9, 0);
+  lv_label_set_text(page->hero, "\u2013");
 
-    page->rows[index].track = bare(page->tile);
-    lv_obj_set_pos(page->rows[index].track, VP_SAFE_X, y + 30);
-    lv_obj_set_size(page->rows[index].track, VP_CONTENT_W, MODELS_BAR_H);
-    lv_obj_set_style_radius(page->rows[index].track, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_opa(page->rows[index].track, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(page->rows[index].track, COL_TRACK, 0);
-    lv_obj_set_style_clip_corner(page->rows[index].track, true, 0);
+  /* plex_money_35, not the shared stat font: the shared faces deliberately
+   * omit '$' (it would shift approved pages), so a dollar sign drawn in one
+   * lands on the glass as a missing-glyph box. */
+  page->money = label(page->tile, &plex_money_35, COL_WHITE,
+                      VP_SAFE_X + 200, MODELS_MONEY_Y,
+                      VP_CONTENT_W - 200, 42);
+  lv_obj_set_style_text_align(page->money, LV_TEXT_ALIGN_RIGHT, 0);
 
-    page->rows[index].fill = bare(page->rows[index].track);
-    lv_obj_set_pos(page->rows[index].fill, 0, 0);
-    lv_obj_set_size(page->rows[index].fill, 0, MODELS_BAR_H);
-    lv_obj_set_style_bg_opa(page->rows[index].fill, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(page->rows[index].fill, COL_CLAUDE, 0);
+  page->track = bare(page->tile);
+  lv_obj_set_pos(page->track, VP_SAFE_X, VP_BAR_Y);
+  lv_obj_set_size(page->track, VP_CONTENT_W, VP_BAR_H);
+  lv_obj_set_style_radius(page->track, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(page->track, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(page->track, COL_TRACK, 0);
+  lv_obj_set_style_clip_corner(page->track, true, 0);
 
-    page->rows[index].tokens = label(page->tile, &plex_ui_14, COL_MUTED,
-                                     VP_SAFE_X, y + 40, VP_CONTENT_W, 18);
-    lv_obj_set_style_text_letter_space(page->rows[index].tokens, 1, 0);
+  page->fill = bare(page->track);
+  lv_obj_set_pos(page->fill, 0, 0);
+  lv_obj_set_size(page->fill, 0, VP_BAR_H);
+  lv_obj_set_style_bg_opa(page->fill, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(page->fill, COL_CLAUDE, 0);
+
+  for (int index = 0; index < TK_MODEL_ROWS_CAP - 1; index++) {
+    page->rest[index] = label(page->tile, &plex_ui_16, COL_MUTED,
+                              VP_SAFE_X,
+                              MODELS_REST_Y0 + index * MODELS_REST_H,
+                              VP_CONTENT_W, 24);
+    lv_obj_set_style_text_letter_space(page->rest[index], 1, 0);
   }
 
-  /* No split at all is dashes, never an empty chart: a blank page reads as
-   * "you used nothing this month", which would be a number we invented. */
   page->empty = label(page->tile, &plex_ui_21, COL_MUTED,
-                      VP_SAFE_X, (MODELS_BAND_TOP + MODELS_BAND_BOTTOM) / 2,
-                      VP_CONTENT_W, 30);
+                      VP_SAFE_X, MODELS_HERO_Y + 40, VP_CONTENT_W, 30);
   lv_obj_set_style_text_align(page->empty, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_text(page->empty, "\u2013");
 
   create_pager(page->tile, VIEW_MODELS);
+}
+
+static void models_show_core(models_page *page, bool visible) {
+  lv_obj_t *parts[] = {page->name, page->hero, page->money, page->track};
+  for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++) {
+    if (visible) lv_obj_remove_flag(parts[i], LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(parts[i], LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 static void apply_models(const tk_tokens *tokens) {
@@ -691,53 +696,48 @@ static void apply_models(const tk_tokens *tokens) {
 
   if (!view.has_data) {
     lv_obj_remove_flag(page->empty, LV_OBJ_FLAG_HIDDEN);
-    for (int index = 0; index < TK_MODEL_ROWS_CAP; index++) {
-      lv_obj_add_flag(page->rows[index].name, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(page->rows[index].usd, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(page->rows[index].track, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(page->rows[index].tokens, LV_OBJ_FLAG_HIDDEN);
-    }
+    models_show_core(page, false);
+    for (int i = 0; i < TK_MODEL_ROWS_CAP - 1; i++)
+      lv_obj_add_flag(page->rest[i], LV_OBJ_FLAG_HIDDEN);
     return;
   }
   lv_obj_add_flag(page->empty, LV_OBJ_FLAG_HIDDEN);
+  models_show_core(page, true);
 
-  for (int index = 0; index < TK_MODEL_ROWS_CAP; index++) {
-    bool live = index < view.count;
-    if (!live) {
-      lv_obj_add_flag(page->rows[index].name, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(page->rows[index].usd, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(page->rows[index].track, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(page->rows[index].tokens, LV_OBJ_FLAG_HIDDEN);
+  const tk_models_row *top = &view.rows[0];
+  lv_label_set_text(page->name, top->name);
+
+  char text[64], compact[24];
+  /* Rounded on purpose: a shelf screen owes you the shape, not decimals. */
+  snprintf(text, sizeof text, "%d%%", (int)(top->cost_share * 100 + 0.5));
+  lv_label_set_text(page->hero, text);
+
+  snprintf(text, sizeof text, "$%.0f", top->usd);
+  lv_label_set_text(page->money, text);
+
+  int width = (int)(top->cost_share * VP_CONTENT_W + 0.5);
+  if (width < 0) width = 0;
+  if (width > VP_CONTENT_W) width = VP_CONTENT_W;
+  lv_obj_set_size(page->fill, width, VP_BAR_H);
+
+  compact_count((int32_t)top->tokens, compact, sizeof compact);
+  snprintf(text, sizeof text, "%s TOKENS   %d%% OF VOLUME", compact,
+           (int)(top->token_share * 100 + 0.5));
+  lv_label_set_text(page->rest[0], text);
+  lv_obj_remove_flag(page->rest[0], LV_OBJ_FLAG_HIDDEN);
+
+  for (int index = 1; index < TK_MODEL_ROWS_CAP - 1; index++) {
+    int row = index;
+    if (row >= view.count) {
+      lv_obj_add_flag(page->rest[index], LV_OBJ_FLAG_HIDDEN);
       continue;
     }
-    lv_obj_remove_flag(page->rows[index].name, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(page->rows[index].usd, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(page->rows[index].track, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(page->rows[index].tokens, LV_OBJ_FLAG_HIDDEN);
-
-    int y = models_row_y(index, view.count);
-    lv_obj_set_y(page->rows[index].name, y);
-    lv_obj_set_y(page->rows[index].usd, y);
-    lv_obj_set_y(page->rows[index].track, y + 30);
-    lv_obj_set_y(page->rows[index].tokens, y + 40);
-
-    const tk_models_row *row = &view.rows[index];
-    lv_label_set_text(page->rows[index].name, row->name);
-
-    char money[24];
-    snprintf(money, sizeof money, "$%.2f", row->usd);
-    lv_label_set_text(page->rows[index].usd, money);
-
-    int width = (int)(row->cost_share * VP_CONTENT_W + 0.5);
-    if (width < 0) width = 0;
-    if (width > VP_CONTENT_W) width = VP_CONTENT_W;
-    lv_obj_set_size(page->rows[index].fill, width, MODELS_BAR_H);
-
-    char tokens_text[48], compact[24];
-    compact_count((int32_t)row->tokens, compact, sizeof compact);
-    snprintf(tokens_text, sizeof tokens_text, "%s TOKENS  %d%%",
-             compact, (int)(row->token_share * 100 + 0.5));
-    lv_label_set_text(page->rows[index].tokens, tokens_text);
+    lv_obj_remove_flag(page->rest[index], LV_OBJ_FLAG_HIDDEN);
+    const tk_models_row *r = &view.rows[row];
+    compact_count((int32_t)r->tokens, compact, sizeof compact);
+    snprintf(text, sizeof text, "%s   %d%%   $%.0f",
+             r->name, (int)(r->cost_share * 100 + 0.5), r->usd);
+    lv_label_set_text(page->rest[index], text);
   }
 }
 
