@@ -161,11 +161,15 @@ typedef struct {
  * page nobody can reach and an overshoot is a write past the array. Both were
  * real in the GitHub-disabled build before the VIEW_* enum started numbering
  * itself. Cheap to assert, and it holds in every configuration. */
+#if TK_VALUE_PAGE_ENABLED
 _Static_assert(VIEW_VALUE == TK_USAGE_SCREEN_VIEWS - 1,
                "Value must be the last tile column");
+#endif
 _Static_assert(TK_USAGE_SCREEN_VIEWS ==
-                   TK_QUOTA_PAGES + TK_TRACKER_PAGES + 1 +
-                       TK_GITHUB_SCREEN_ENABLED + 1 + 1 + 1,
+                   TK_QUOTA_PAGES + TK_TRACKER_PAGES +
+                       TK_BURN_RATE_PAGE_ENABLED + TK_GITHUB_SCREEN_ENABLED +
+                       TK_DAILY_PAGE_ENABLED + TK_MODELS_PAGE_ENABLED +
+                       TK_VALUE_PAGE_ENABLED,
                "tile count must equal the pages actually created");
 
 /* ------------------------------------------------------------- models */
@@ -204,7 +208,9 @@ static struct {
   lv_obj_t *tiles[TK_USAGE_SCREEN_VIEWS];
   quota_page quotas[TK_QUOTA_PAGES];
   forecast_row forecast_rows[2];
-  tracker_page trackers[TK_TRACKER_PAGES];
+  /* One spare slot when trackers are compiled out: a zero-length
+   * array is not valid C, and the loops below run zero times. */
+  tracker_page trackers[TK_TRACKER_PAGES > 0 ? TK_TRACKER_PAGES : 1];
 #if TK_GITHUB_SCREEN_ENABLED
   github_page github;
 #endif
@@ -593,6 +599,7 @@ static void create_forecast_row(lv_obj_t *tile, forecast_row *row,
   lv_obj_set_style_text_letter_space(row->detail, 1, 0);
 }
 
+#if TK_BURN_RATE_PAGE_ENABLED
 static void create_burn_rate_page(void) {
   lv_obj_t *tile = new_tile(VIEW_BURN_RATE);
   create_analytics_header(tile, "BURN RATE", "WEEKLY", "FORECAST");
@@ -603,6 +610,7 @@ static void create_burn_rate_page(void) {
                       USAGE_PROVIDER_CODEX);
   create_pager(tile, VIEW_BURN_RATE);
 }
+#endif
 
 /* Value page.
  *
@@ -637,6 +645,7 @@ static void create_burn_rate_page(void) {
 #define DAILY_REST_Y0 340
 #define DAILY_REST_H 26
 
+#if TK_DAILY_PAGE_ENABLED
 static void create_daily_page(void) {
   daily_page *page = &ui.daily;
   memset(page, 0, sizeof *page);
@@ -688,7 +697,9 @@ static void create_daily_page(void) {
 
   create_pager(page->tile, VIEW_DAILY);
 }
+#endif
 
+#if TK_DAILY_PAGE_ENABLED
 static void apply_daily(const tk_tokens *tokens) {
   daily_page *page = &ui.daily;
   if (!page->tile) return;
@@ -725,7 +736,9 @@ static void apply_daily(const tk_tokens *tokens) {
            view.has_rate ? view.rate_text : "\u2013");
   lv_label_set_text(page->rest[1], text);
 }
+#endif
 
+#if TK_MODELS_PAGE_ENABLED
 static void create_models_page(void) {
   models_page *page = &ui.models;
   memset(page, 0, sizeof *page);
@@ -784,7 +797,9 @@ static void create_models_page(void) {
 
   create_pager(page->tile, VIEW_MODELS);
 }
+#endif
 
+#if TK_MODELS_PAGE_ENABLED
 static void models_show_core(models_page *page, bool visible) {
   lv_obj_t *parts[] = {page->name, page->hero, page->money, page->track};
   for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++) {
@@ -792,7 +807,9 @@ static void models_show_core(models_page *page, bool visible) {
     else lv_obj_add_flag(parts[i], LV_OBJ_FLAG_HIDDEN);
   }
 }
+#endif
 
+#if TK_MODELS_PAGE_ENABLED
 static void apply_models(const tk_tokens *tokens) {
   models_page *page = &ui.models;
   if (!page->tile) return;
@@ -846,7 +863,9 @@ static void apply_models(const tk_tokens *tokens) {
     lv_label_set_text(page->rest[index], text);
   }
 }
+#endif
 
+#if TK_VALUE_PAGE_ENABLED
 static void create_value_page(void) {
   value_page *page = &ui.value;
   memset(page, 0, sizeof *page);
@@ -913,6 +932,7 @@ static void create_value_page(void) {
   lv_label_set_text(page->cap_paid, "YOU PAID");
   create_pager(page->tile, VIEW_VALUE);
 }
+#endif
 
 /* The value page owns its hero font. The shared numeral fonts must never
  * carry "$": the glyph is taller than every digit, so adding it grows
@@ -931,6 +951,7 @@ static void apply_value_hero(value_page *page,
   lv_label_set_text(page->hero, view->hero_text);
 }
 
+#if TK_VALUE_PAGE_ENABLED
 static void apply_value(const tk_tokens *tokens) {
   value_page *page = &ui.value;
   if (!page->tile) return;
@@ -985,6 +1006,7 @@ static void apply_value(const tk_tokens *tokens) {
     lv_label_set_text(page->stat_paid, view.paid);
   }
 }
+#endif
 
 static uint64_t agent_packet_age_ms(int64_t now_us) {
   if (!ui.has_agent_snapshot || now_us <= ui.agent_applied_at_us) {
@@ -1168,6 +1190,7 @@ static void tracker_grid_draw(lv_event_t *e) {
   }
 }
 
+#if TK_TRACKER_PAGES_ENABLED
 static void create_tracker_page(tracker_page *page, int index, bool codex) {
   memset(page, 0, sizeof *page);
   page->provider = codex ? USAGE_PROVIDER_CODEX : USAGE_PROVIDER_CLAUDE;
@@ -1233,6 +1256,7 @@ static void create_tracker_page(tracker_page *page, int index, bool codex) {
 
   create_pager(page->tile, index);
 }
+#endif
 
 static void position_stat_unit(lv_obj_t *value_obj, lv_obj_t *unit_obj) {
   if (lv_label_get_text(unit_obj)[0] == '\0') {
@@ -1284,22 +1308,32 @@ void usage_screen_create(lv_obj_t *root) {
 #endif
   create_quota_page(&ui.quotas[TK_MODEL_WEEK_PAGE_ENABLED], VIEW_CLAUDE_ALL,
                     USAGE_QUOTA_CLAUDE_ALL, USAGE_PROVIDER_CLAUDE);
+#if TK_DAILY_PAGE_ENABLED
   create_daily_page();
+#endif
 #if TK_CODEX_SCREENS_ENABLED
   create_quota_page(&ui.quotas[1 + TK_MODEL_WEEK_PAGE_ENABLED],
                     VIEW_CODEX_WEEKLY,
                     USAGE_QUOTA_CODEX_WEEK, USAGE_PROVIDER_CODEX);
 #endif
+#if TK_BURN_RATE_PAGE_ENABLED
   create_burn_rate_page();
+#endif
+#if TK_TRACKER_PAGES_ENABLED
   create_tracker_page(&ui.trackers[0], VIEW_TRACKER_CLAUDE, false);
 #if TK_CODEX_SCREENS_ENABLED
   create_tracker_page(&ui.trackers[1], VIEW_TRACKER_CODEX, true);
 #endif
+#endif
 #if TK_GITHUB_SCREEN_ENABLED
   create_github_page();
 #endif
+#if TK_MODELS_PAGE_ENABLED
   create_models_page();
+#endif
+#if TK_VALUE_PAGE_ENABLED
   create_value_page();
+#endif
 #if TK_GITHUB_NOTIFICATIONS_ENABLED
   /* Created before the agent monitor: NEEDS YOU/ERROR/DONE always retain
    * transient priority over a project star. */
@@ -1316,9 +1350,15 @@ void usage_screen_apply_tokens(const tk_tokens *tokens) {
   usage_presenter_build_forecasts(tokens, &forecasts);
   for (int i = 0; i < 2; i++)
     apply_forecast_row(&ui.forecast_rows[i], &forecasts.rows[i]);
+#if TK_DAILY_PAGE_ENABLED
   apply_daily(tokens);
+#endif
+#if TK_MODELS_PAGE_ENABLED
   apply_models(tokens);
+#endif
+#if TK_VALUE_PAGE_ENABLED
   apply_value(tokens);
+#endif
 }
 
 void usage_screen_apply_max_tracker(const tk_max_tracker *t) {

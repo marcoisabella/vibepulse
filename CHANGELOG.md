@@ -23,6 +23,19 @@ on the [releases page](https://github.com/niclasvestlund-YT/vibepulse/releases).
   is what the page is for. It is built from the host's own session logs, not
   the quota API, so it stays truthful while an upstream rate limit has the
   quota windows showing last-known-good.
+- A **Today** page: volume since local midnight as the dominant figure, the
+  share of the week burned today on the bar, and sessions plus the last
+  hour's rate underneath. Fed by the host's own session logs, so it keeps
+  working while a rate-limited quota probe leaves the windows dashed.
+- `TK_MODEL_WEEK_PAGE_ENABLED` (default on) drops the heaviest-model weekly
+  page. Not every plan reports that window; when it arrives null the page is
+  dashes forever and a rotating panel stops on it every cycle.
+- `tools/vibepulse-host-setup.sh` brings another Mac up as a VibePulse host in
+  one idempotent command — device key, discovery advertiser, provider choice,
+  launchd service and loopback hooks — deriving everything from the
+  repository's own `secrets.h` so no secret is moved by hand. It reports an
+  8-character fingerprint of the device key so two hosts can be compared
+  without either revealing the value.
 - `TK_CODEX_SCREENS_ENABLED` (default on) drops Codex's weekly-quota and Max
   Tracker pages for Claude-only panels, which otherwise swipe past — and, with
   rotation, now wait on — two permanently dashed screens. Codex's live agent

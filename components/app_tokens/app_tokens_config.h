@@ -29,6 +29,48 @@
 #define TK_GITHUB_RELAY_URL      NULL
 #endif
 
+/* Every page is optional.
+ *
+ * A shelf screen is personal: the pages worth a 10-second slot on someone
+ * else's desk are not the ones worth it on yours, and on a rotating panel an
+ * unwanted page is not merely ignorable -- you WAIT on it, every cycle. So
+ * each one has a switch rather than an opinion, all on by default so a fresh
+ * clone still shows everything.
+ *
+ * Turn any of them off in secrets.h. The VIEW_* enum numbers itself from
+ * whatever survives, so removing a page can never leave a hole. */
+#ifndef TK_DAILY_PAGE_ENABLED
+#define TK_DAILY_PAGE_ENABLED 1
+#endif
+#ifndef TK_BURN_RATE_PAGE_ENABLED
+#define TK_BURN_RATE_PAGE_ENABLED 1
+#endif
+#ifndef TK_TRACKER_PAGES_ENABLED
+#define TK_TRACKER_PAGES_ENABLED 1
+#endif
+#ifndef TK_MODELS_PAGE_ENABLED
+#define TK_MODELS_PAGE_ENABLED 1
+#endif
+#ifndef TK_VALUE_PAGE_ENABLED
+#define TK_VALUE_PAGE_ENABLED 1
+#endif
+
+#if TK_DAILY_PAGE_ENABLED != 0 && TK_DAILY_PAGE_ENABLED != 1
+#error "TK_DAILY_PAGE_ENABLED must be 0 or 1"
+#endif
+#if TK_BURN_RATE_PAGE_ENABLED != 0 && TK_BURN_RATE_PAGE_ENABLED != 1
+#error "TK_BURN_RATE_PAGE_ENABLED must be 0 or 1"
+#endif
+#if TK_TRACKER_PAGES_ENABLED != 0 && TK_TRACKER_PAGES_ENABLED != 1
+#error "TK_TRACKER_PAGES_ENABLED must be 0 or 1"
+#endif
+#if TK_MODELS_PAGE_ENABLED != 0 && TK_MODELS_PAGE_ENABLED != 1
+#error "TK_MODELS_PAGE_ENABLED must be 0 or 1"
+#endif
+#if TK_VALUE_PAGE_ENABLED != 0 && TK_VALUE_PAGE_ENABLED != 1
+#error "TK_VALUE_PAGE_ENABLED must be 0 or 1"
+#endif
+
 /* The heaviest-model weekly window. Not every plan exposes it -- the field
  * arrives null and the page is dashes forever -- so it is switchable. On by
  * default; turn it off in secrets.h when your account never reports one. */
@@ -61,7 +103,8 @@
  * week when its pages are on. Tracker pages: Claude's, plus Codex's. */
 #define TK_QUOTA_PAGES   (1 + TK_MODEL_WEEK_PAGE_ENABLED + \
                           TK_CODEX_SCREENS_ENABLED)
-#define TK_TRACKER_PAGES (1 + TK_CODEX_SCREENS_ENABLED)
+#define TK_TRACKER_PAGES (TK_TRACKER_PAGES_ENABLED * \
+                          (1 + TK_CODEX_SCREENS_ENABLED))
 
 /* The GitHub page and star popup are deliberately independent. A fresh clone
  * remains Claude/Codex-only until the user opts in through secrets.h. */

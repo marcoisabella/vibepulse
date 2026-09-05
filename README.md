@@ -100,9 +100,24 @@ after the panel has been left alone for 45 seconds. Nothing rotates while a
 NEEDS YOU alert is up. Dwell, resume delay, and the whole feature are
 `menuconfig` settings under *VibePulse panel behaviour*.
 
-Run Claude only? `TK_CODEX_SCREENS_ENABLED 0` in `secrets.h` drops Codex's
-two pages, so the rotation never waits on screens that will always be
-dashed.
+**Every page is optional.** A shelf screen is personal, and on a rotating
+panel a page you do not want is not merely ignorable — you *wait* on it,
+every cycle. Each switch goes in `secrets.h`, all default on:
+
+| Switch | Drops |
+|---|---|
+| `TK_MODEL_WEEK_PAGE_ENABLED 0` | heaviest-model weekly (not every plan reports it — when yours does not, the page is dashes forever) |
+| `TK_CODEX_SCREENS_ENABLED 0` | Codex's weekly quota and its Max Tracker |
+| `TK_DAILY_PAGE_ENABLED 0` | Today |
+| `TK_BURN_RATE_PAGE_ENABLED 0` | Burn rate |
+| `TK_TRACKER_PAGES_ENABLED 0` | both Max Tracker heatmaps |
+| `TK_MODELS_PAGE_ENABLED 0` | the model breakdown |
+| `TK_VALUE_PAGE_ENABLED 0` | the value multiple |
+
+The `VIEW_*` enum numbers itself from whatever survives and the tile count is
+its own last member, so removing a page can never leave an unreachable gap —
+and a static assertion proves the tiles built match the columns declared, in
+every combination.
 
 <table>
 <tr>
@@ -152,6 +167,20 @@ when), or how much head-room is left at reset.
 **Max Tracker** — a GitHub-style heatmap of your daily quota peaks, with
 coding streaks and max counters, per provider. Red cells are days you
 maxed out.
+
+</td>
+</tr>
+<tr>
+<td><img src="docs/img/vibepulse-daily.png" alt="Today's usage since local midnight" width="100%"></td>
+<td valign="top">
+
+**Today** — what the day has cost so far: volume since local midnight, how
+much of the weekly allowance today alone accounts for, plus sessions and the
+last hour's rate.
+
+Like the models page it is read from your own session logs, so it keeps
+answering while a rate-limited quota probe leaves the windows dashed — which
+is exactly when you want to know what today is costing.
 
 </td>
 </tr>

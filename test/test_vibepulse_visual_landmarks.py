@@ -59,37 +59,38 @@ PAGER_ROW_Y = 458  # PAGER_Y (456) + 2: inside the 6px-tall dot row
 def _view_order():
     """The tile columns the SIMULATOR renders, in order.
 
-    The VIEW_* columns are now numbered by the compiler, and the count is the
-    enum's own last member, so there is no macro left to evaluate. Walk the
-    enum the way the preprocessor would -- honouring the two optional-page
-    toggles the simulator sets -- rather than hard-coding 8, so this stays in
-    lockstep with app_tokens.h and sim/CMakeLists.txt.
+    Walks the VIEW_* enum the way the preprocessor would. The conditionals
+    nest (Codex's tracker sits inside the tracker block), so liveness is a
+    stack, not a flag: a single boolean silently re-enabled everything after
+    the first #endif. Unknown switches default to on, matching
+    app_tokens_config.h, so adding a page does not break this before anyone
+    has taught the simulator about it.
     """
     app = (ROOT / "components/app_tokens/app_tokens.h").read_text(
         encoding="utf-8")
     cmake = (ROOT / "sim/CMakeLists.txt").read_text(encoding="utf-8")
+    config = (ROOT / "components/app_tokens/app_tokens_config.h").read_text(
+        encoding="utf-8")
 
-    def flag(name, default):
+    def flag(name):
         found = re.search(rf"{name}=(\d+)", cmake)
-        return int(found.group(1)) if found else default
-
-    # Defaults mirror app_tokens_config.h when the simulator is silent.
-    enabled = {
-        "TK_GITHUB_SCREEN_ENABLED": flag("TK_GITHUB_SCREEN_ENABLED", 0),
-        "TK_CODEX_SCREENS_ENABLED": flag("TK_CODEX_SCREENS_ENABLED", 1),
-        "TK_MODEL_WEEK_PAGE_ENABLED": flag("TK_MODEL_WEEK_PAGE_ENABLED", 1),
-    }
+        if found:
+            return int(found.group(1))
+        # the header's own default
+        found = re.search(rf"#define\s+{name}\s+(\d+)", config)
+        return int(found.group(1)) if found else 1
 
     body = app[app.index("enum {"):]
     body = body[:body.index("};")]
-    order, live = [], True
+    order, stack = [], []
     for line in body.splitlines():
         line = line.strip()
         if line.startswith("#if "):
-            live = bool(enabled[line[4:].strip()])
+            stack.append(bool(flag(line[4:].strip())))
         elif line.startswith("#endif"):
-            live = True
-        elif live and line.startswith("VIEW_"):
+            if stack:
+                stack.pop()
+        elif line.startswith("VIEW_") and all(stack):
             order.append(line.split("=")[0].strip().rstrip(","))
     return order
 
