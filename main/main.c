@@ -68,11 +68,19 @@ static const char *TAG = "torget";
  * event-krokar).
  *
  * Ljuset RAMPAS, aldrig hoppar: uppåt snabbt (~1,3 s, samma ramp ger
- * boot-fade från svart), nedåt lat (~8 s skymning). */
+ * boot-fade från svart), nedåt lat (~8 s skymning).
+ *
+ * CONFIG_TORGET_IDLE_DIM=n håller panelen på BRIGHT_DAY jämt, för en skärm
+ * som ska gå att läsa tvärs över rummet utan att först bli petad på. Rampen
+ * själv blir kvar: boot-faden från svart är samma väg upp. */
 #define NIGHT_AFTER_US   (15LL * 60LL * 1000000LL)
 #define WAKE_HOLD_US     (30LL * 1000000LL)
 #define BRIGHT_DAY       100
-#define BRIGHT_NIGHT     20
+#if CONFIG_TORGET_IDLE_DIM
+#define BRIGHT_NIGHT     CONFIG_TORGET_IDLE_DIM_PCT
+#else
+#define BRIGHT_NIGHT     BRIGHT_DAY
+#endif
 #define BRIGHT_STEP_UP   8   /* per 100 ms-tick: 0→100 på 1,3 s */
 #define BRIGHT_STEP_DOWN 1   /* per 100 ms-tick: 100→20 på 8 s */
 

@@ -63,3 +63,29 @@ config TK_PAGE_RESUME_AFTER_S
           screen moving on while someone is still reading the page they
           deliberately swiped to.
 endmenu
+
+menu "Torget display brightness"
+config TORGET_IDLE_DIM
+        bool "Dim the panel when nothing is happening"
+        default y
+        help
+          A quarter of an hour without app activity ramps the panel down to a
+          resting level, and a touch brings it back for thirty seconds. That
+          protects an AMOLED standing in a home, where the same frame can hold
+          for hours.
+
+          Turn it off for a panel that has to stay readable across a room
+          without being touched first. The trade is real and one-way: an AMOLED
+          held at full output ages faster, and this display shows a largely
+          static frame, so the wear falls on the same pixels. Nothing else in
+          the firmware compensates for that choice.
+
+config TORGET_IDLE_DIM_PCT
+        int "Brightness while dimmed (%)"
+        depends on TORGET_IDLE_DIM
+        range 1 100
+        default 20
+        help
+          The resting level. Twenty percent stays legible in a dark room while
+          taking most of the load off the panel.
+endmenu
