@@ -48,7 +48,12 @@ tg_notice_action tg_notice_update(tg_notice_policy *policy,
                                   bool available, bool busy,
                                   int64_t now_us);
 
-/* Användarens tryck på takeovern: göm och starta tjatklockan. */
-void tg_notice_dismiss(tg_notice_policy *policy, int64_t now_us);
+/* Användarens tryck på takeovern: göm och starta tjatklockan. Returnerar
+ * TG_NOTICE_HIDE när en synlig takeover faktiskt avfärdades — anroparen
+ * MÅSTE lyda den och gömma overlayn. tg_notice_update() kan inte säga det
+ * åt den: efter avfärdandet är showing falskt och tjatklockan orörd, så
+ * nästa poll svarar NONE. Läxan 2026-09-09: utan returvärdet blev
+ * takeovern kvar på glaset och UPDATE-pillret dog med den. */
+tg_notice_action tg_notice_dismiss(tg_notice_policy *policy, int64_t now_us);
 
 #endif

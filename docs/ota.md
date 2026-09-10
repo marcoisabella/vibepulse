@@ -150,3 +150,4 @@ SHA, the version line names the incoming image.
 | 202 but the old version still runs after reboot | Health gate rolled the image back | The new build is broken on-device; check it on USB with the console |
 | UPDATE READY never appears | Same version already running, or tokenserver older than the feature | `curl localhost:8737/api/tokens \| grep otaAvailable` |
 | Takeover shows but UPDATE does nothing | No pusher waiting on the Mac | Start `tools/ota-flash.sh <ip>` — the tap opens the window; the Mac must deliver |
+| Takeover nags forever and is never satisfied | The announced binary can never be delivered: `build*/torget.bin` is `-dirty` or older than HEAD, and the sender gates refuse it | `curl -s localhost:8737/api/tokens \| grep otaAvailable`, compare with `git describe --tags --dirty`; rebuild clean at HEAD |

@@ -104,8 +104,10 @@ tg_notice_action tg_notice_update(tg_notice_policy *policy,
   return TG_NOTICE_NONE;
 }
 
-void tg_notice_dismiss(tg_notice_policy *policy, int64_t now_us) {
-  if (!policy || !policy->showing) return;
+tg_notice_action tg_notice_dismiss(tg_notice_policy *policy,
+                                   int64_t now_us) {
+  if (!policy || !policy->showing) return TG_NOTICE_NONE;
   policy->showing = false;
   policy->dismissed_at_us = now_us;
+  return TG_NOTICE_HIDE;
 }

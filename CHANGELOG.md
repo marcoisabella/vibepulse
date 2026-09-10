@@ -43,6 +43,12 @@ on the [releases page](https://github.com/niclasvestlund-YT/vibepulse/releases).
 
 ### Fixed
 
+- The UPDATE READY takeover no longer wedges the panel. Dismissing it flipped
+  the notice's internal state without ever telling the overlay to hide, so a
+  single stray tap left the takeover painted on the glass for good — and since
+  both tap paths require a *showing* notice, the UPDATE NOW pill stopped
+  responding with it. Only a KEY3 hold or a reboot recovered. The dismissal now
+  returns the instruction for the glass and the maintenance guard obeys it.
 - The heaviest-model weekly card no longer claims to be Fable when the service
   sends no label. It fell back to the literal `FABLE · WEEK`, asserting a model
   the service never confirmed and that many accounts never run; it now reads

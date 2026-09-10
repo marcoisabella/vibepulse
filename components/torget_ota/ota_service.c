@@ -446,11 +446,19 @@ static void maintenance_ui_task(void *arg) {
        * fonstret sa pusharen pa Macen far leverera. Tokenet vaktar
        * fortfarande sjalva uppladdningen. */
       ESP_LOGI(TAG, "notisen besvarad med JA — fönstret öppnas");
-      tg_notice_dismiss(&notice, now_us);
+      /* Ingen gomning har: fonsterbranchen nedan maler om glaset till
+       * OPEN i samma varv, sa ett HIDE emellan vore bara en blink. */
+      (void)tg_notice_dismiss(&notice, now_us);
       torget_ota_service_open_maintenance();
       until = atomic_load(&s_maintenance_until_us);
     } else if (notice.showing && tap_snooze) {
-      tg_notice_dismiss(&notice, now_us);
+      /* Snooze: policyn ager glasets instruktion, och den MASTE lydas har.
+       * tg_notice_update() nedan kan inte gora det at oss — showing ar
+       * redan falskt och tjatklockan nystartad, sa den svarar NONE och
+       * takeovern skulle ligga kvar pa glaset for alltid (och med den
+       * dott UPDATE-pillret, eftersom bada trycken kraver showing). */
+      if (tg_notice_dismiss(&notice, now_us) == TG_NOTICE_HIDE)
+        torget_ota_ui_set(TG_OTA_UI_HIDDEN, 0, 0);
     }
     bool busy = until != 0 && (until - now_us) > 0;
     switch (tg_notice_update(&notice, newer, busy, now_us)) {

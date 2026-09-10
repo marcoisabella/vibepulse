@@ -21,6 +21,26 @@ point at the backlog item.
 
 ---
 
+## 2026-09-09 · A snooze tap froze the takeover it was meant to dismiss
+
+**What happened:** the panel sat on the UPDATE READY takeover and no tap did
+anything — including UPDATE NOW. **Root cause:** a tap anywhere but the YES
+pill snoozes, and `tg_notice_dismiss()` set `policy->showing = false` but
+returned `void`, so nothing ever told the overlay to hide. The guard only
+hides on `TG_NOTICE_HIDE` from `tg_notice_update()`, which after a dismiss
+answers `NONE` (showing is already false, the nag clock just restarted). The
+takeover therefore stayed painted forever — and because *both* tap branches
+require `notice.showing`, the UPDATE pill died with it. One stray touch
+wedged the glass until a KEY3 hold or a reboot. **The rule:** a pure policy
+that owns the glass must return the glass instruction for *every* transition,
+dismissals included; a `void` mutator cannot repaint anything. **Guards:**
+`tg_notice_dismiss()` now returns `tg_notice_action` and the guard obeys it;
+`test_ota_notice_policy.c` pins that a visible takeover dismisses to
+`TG_NOTICE_HIDE` and a stray dismiss to `NONE`. **Watch for:** the sibling
+trap — an announcement that can never be delivered (a `-dirty` or stale
+`build*/torget.bin` that `tools/ota-flash.sh` refuses) makes the takeover nag
+hourly forever even when the taps work.
+
 ## 2026-08-30 · Local activity was rendered as no active agent
 
 **What happened:** the local `/api/agent-status` reported the current Codex

@@ -60,6 +60,19 @@ static void test_installed_update_silences_the_notice(void) {
         tg_notice_update(&policy, false, false, 3000) == TG_NOTICE_NONE);
 }
 
+static void test_dismiss_hides_the_glass(void) {
+  /* Regressionen 2026-09-09: ett tryck avfardade notisen i policyn men
+   * ingen sa nagonsin till overlayn att forsvinna, sa takeovern lag kvar
+   * pa glaset — och eftersom showing nu var falskt slutade UPDATE-pillret
+   * svara. Avfardandet MASTE returnera glasets instruktion. */
+  tg_notice_policy policy = {0};
+  tg_notice_update(&policy, true, false, 0);
+  check("dismissing a visible takeover hides the glass",
+        tg_notice_dismiss(&policy, 1000) == TG_NOTICE_HIDE);
+  check("a stray dismiss leaves the glass alone",
+        tg_notice_dismiss(&policy, 2000) == TG_NOTICE_NONE);
+}
+
 static void test_dismiss_without_takeover_is_a_no_op(void) {
   tg_notice_policy policy = {0};
   tg_notice_dismiss(&policy, 1000);
@@ -100,6 +113,7 @@ int main(void) {
   test_busy_device_is_never_taken_over();
   test_installed_update_silences_the_notice();
   test_dismiss_without_takeover_is_a_no_op();
+  test_dismiss_hides_the_glass();
   test_only_a_demonstrably_newer_build_is_available();
   if (failures) {
     printf("%d failure(s)\n", failures);
