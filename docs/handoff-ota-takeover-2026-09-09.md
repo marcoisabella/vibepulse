@@ -1,5 +1,14 @@
 # Handoff — stuck UPDATE READY takeover (2026-09-09)
 
+> **CLOSED 2026-09-14.** The delivery below finally happened, carried by a
+> later image: `v1.0.0-46-g70145f1` went over the air and the panel booted
+> into `ota_1` running it (it had been on `v1.0.0-39-g9ec370b` in `ota_0`
+> since 2026-09-05). That image contains this takeover fix plus
+> `CONFIG_TORGET_IDLE_DIM=n` and the boot-screen teardown fix. Both open
+> risks below are settled: the recovered `TG_OTA_TOKEN` was accepted (202,
+> no 401), and the IDF 5.5.0 build passed the boot-health gate on hardware.
+> Kept for the root-cause story; nothing here is still pending.
+
 Everything is committed, pushed and green. **One step remains: deliver the
 build to the panel.** Resume instructions are at the bottom.
 
