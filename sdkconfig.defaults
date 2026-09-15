@@ -63,3 +63,11 @@ CONFIG_LV_MEM_SIZE_KILOBYTES=256
 CONFIG_UAC_SAMPLE_RATE=16000
 CONFIG_UAC_SUPPORT_MACOS=y
 CONFIG_UAC_TUSB_PRODUCT="Vibbe"
+
+# --- Torget --- Panelen står på en hylla och ska gå att läsa tvärs över
+# rummet utan att först bli petad på, så viloläget är avstängt: ljuset
+# ligger kvar på BRIGHT_DAY jämt. Rampen själv finns kvar — boot-faden
+# från svart går samma väg upp. Priset är namngivet i Kconfig-hjälpen:
+# en AMOLED som hålls på full effekt åldras fortare, och den här skärmen
+# visar en i stort sett stillastående bild.
+CONFIG_TORGET_IDLE_DIM=n
