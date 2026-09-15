@@ -635,16 +635,19 @@ static void tick_cb(lv_timer_t *t) {
   /* Bootskärmen tas ner av första datalivet — eller ge-upp-taket när
    * nätet aldrig kommer (45 s: två hämtcykler + marginal; bakom står
    * apparnas ärliga NO DATA). Låset är rekursivt, så stage() från
-   * LVGL-tasken är säkert. */
+   * LVGL-tasken lyckas alltid här och nu.
+   *
+   * "Klart" låses ändå på stage():s SVAR, aldrig i förväg: nedtagningen är
+   * enda vägen bort från ett svart lager som slukar touchen, så den ska
+   * överleva ett missat lås. Ticken frågar vidare 10 ggr/s tills den vinner
+   * — flyttas anropet någon gång till en annan task kostar det ett tick i
+   * stället för en panel som står kvar på ordmärket för alltid. */
   static bool boot_screen_done;
   if (!boot_screen_done) {
-    if (atomic_load(&s_data_alive)) {
-      boot_screen_done = true;
-      torget_boot_screen_stage(TG_BOOT_DATA_OK);
-    } else if (now > 45LL * 1000000LL) {
-      boot_screen_done = true;
-      torget_boot_screen_stage(TG_BOOT_GIVE_UP);
-    }
+    if (atomic_load(&s_data_alive))
+      boot_screen_done = torget_boot_screen_stage(TG_BOOT_DATA_OK);
+    else if (now > 45LL * 1000000LL)
+      boot_screen_done = torget_boot_screen_stage(TG_BOOT_GIVE_UP);
   }
 
   static tg_button_policy key3;

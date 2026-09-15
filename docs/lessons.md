@@ -21,6 +21,30 @@ point at the backlog item.
 
 ---
 
+## 2026-09-14 · A caller latched "done" before the teardown said so
+
+**What happened:** nothing yet — this one was found by reading, while chasing
+a report of the panel "just showing the VibePulse logo". **Root cause:**
+`torget_boot_screen_stage()` bails out early when it cannot take the UI lock
+inside 200 ms, and its own comment delegates the retry to the caller ("nästa
+signal/poll försöker igen"). The caller in `main.c` did the opposite: it set
+`boot_screen_done = true` *before* calling, so the teardown was attempted
+exactly once. One missed lock would have left a black, `CLICKABLE` overlay —
+the wordmark screen — painted forever, swallowing every touch, with no path
+back but a reboot. It cannot fire today only by accident of scheduling:
+that call sits in `tick_cb`, inside the LVGL task, where the recursive lock
+always succeeds. Moving it to any other task would have armed it.
+**The rule:** when a teardown is the only exit from a layer that eats input,
+latch "done" on what the teardown *returned*, never on having called it. A
+function documenting "the caller retries" is a contract, and the caller must
+actually honour it. **Guards:** `torget_boot_screen_stage()` now returns
+`bool` (false only on a missed lock, true when applied or already down) and
+`main.c` latches on that answer; the 10 Hz tick re-asks until it wins.
+**Watch for:** the two single-shot callers, `TG_BOOT_WIFI_UP` and
+`TG_BOOT_TIME_OK` — they fire from the event and SNTP tasks, ignore the
+return, and so can still silently leave a step muted. Cosmetic only: the
+overlay's removal never depends on them.
+
 ## 2026-09-09 · A snooze tap froze the takeover it was meant to dismiss
 
 **What happened:** the panel sat on the UPDATE READY takeover and no tap did

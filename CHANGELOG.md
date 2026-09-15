@@ -43,6 +43,15 @@ on the [releases page](https://github.com/niclasvestlund-YT/vibepulse/releases).
 
 ### Fixed
 
+- The boot screen can no longer strand the panel on its wordmark. Tearing the
+  layer down is skipped when the UI lock is busy, and the function documents
+  that the caller must retry — but the caller marked the job done *before*
+  asking, so the attempt happened exactly once. A single missed lock would
+  have left a black, touch-swallowing overlay up until the next reboot.
+  `torget_boot_screen_stage()` now reports whether it acted, and the 10 Hz
+  tick keeps asking until it has. Latent rather than live: the call runs
+  inside the LVGL task, where the recursive lock always succeeds.
+
 - The UPDATE READY takeover no longer wedges the panel. Dismissing it flipped
   the notice's internal state without ever telling the overlay to hide, so a
   single stray tap left the takeover painted on the glass for good — and since
@@ -72,6 +81,15 @@ on the [releases page](https://github.com/niclasvestlund-YT/vibepulse/releases).
   entirely.
 
 ### Changed
+
+- This panel no longer dims. `CONFIG_TORGET_IDLE_DIM` ships `n` in
+  `sdkconfig.defaults`, so the screen holds `BRIGHT_DAY` instead of resting at
+  20 % after a quarter hour: a shelf display is read at a glance from across
+  the room, and one that has to be touched before it can be read is not doing
+  its job. The ramp itself is untouched — the boot fade from black is the same
+  way up — and the trade named in the Kconfig help is accepted deliberately:
+  an AMOLED held at full output on a largely static frame ages faster, and
+  nothing else in the firmware compensates.
 
 - `BODY_MAX` for `/api/tokens` is 3072 bytes, up from 2048, to carry the model
   split. The capacity contract's worst case is 1802 bytes — 59 % of the

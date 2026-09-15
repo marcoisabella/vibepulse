@@ -48,9 +48,9 @@ void torget_boot_screen_create(void) {
   }
 }
 
-void torget_boot_screen_stage(tg_boot_stage stage) {
-  if (!ui.overlay || ui.gone) return;
-  if (!torget_ui_try_lock(200)) return; /* nästa signal/poll försöker igen */
+bool torget_boot_screen_stage(tg_boot_stage stage) {
+  if (!ui.overlay || ui.gone) return true; /* redan nertagen: inget att göra */
+  if (!torget_ui_try_lock(200)) return false; /* anroparen försöker igen */
   switch (stage) {
     case TG_BOOT_WIFI_UP:
       lv_obj_set_style_text_color(ui.steps[0], lv_color_white(), 0);
@@ -71,4 +71,5 @@ void torget_boot_screen_stage(tg_boot_stage stage) {
       break;
   }
   torget_ui_unlock();
+  return true;
 }

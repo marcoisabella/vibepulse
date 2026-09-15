@@ -1,6 +1,8 @@
 #ifndef TORGET_BOOT_SCREEN_H
 #define TORGET_BOOT_SCREEN_H
 
+#include <stdbool.h>
+
 /*
  * Bootskärmen: i stället för att apparna visar streck och NO DATA under
  * uppstartens första halvminut berättar plattformen ärligt var i kedjan
@@ -30,6 +32,13 @@ typedef enum {
  * anroparens UI-lås, före torget_ota_ui_create. */
 void torget_boot_screen_create(void);
 
-void torget_boot_screen_stage(tg_boot_stage stage);
+/* Returnerar false BARA när UI-låset inte gick att ta: ingenting hände och
+ * anroparen MÅSTE fråga igen. true betyder "gjort" — även när skärmen redan
+ * är nertagen, så en anropare som låser på returvärdet aldrig snurrar.
+ *
+ * Kontraktet finns för att nedtagningen är ETT tillfälle per signal: latchar
+ * anroparen "klart" innan svaret säger det, blir ett missat lås en svart
+ * bootskärm som ligger kvar för alltid och slukar touchen (2026-09-14). */
+bool torget_boot_screen_stage(tg_boot_stage stage);
 
 #endif
